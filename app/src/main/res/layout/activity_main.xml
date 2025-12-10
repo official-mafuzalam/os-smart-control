@@ -71,14 +71,14 @@
         android:padding="16dp">
 
         <!-- Search Button -->
-        <Button
-            android:id="@+id/buttonConnect"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:backgroundTint="#2196F3"
-            android:text="Search Bluetooth Devices"
-            android:textColor="#FFFFFF" />
+<!--        <Button-->
+<!--            android:id="@+id/buttonConnect"-->
+<!--            android:layout_width="match_parent"-->
+<!--            android:layout_height="wrap_content"-->
+<!--            android:layout_marginBottom="16dp"-->
+<!--            android:backgroundTint="#2196F3"-->
+<!--            android:text="Search Bluetooth Devices"-->
+<!--            android:textColor="#FFFFFF" />-->
 
         <!-- Control Card -->
         <com.google.android.material.card.MaterialCardView

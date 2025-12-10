@@ -1,16 +1,9 @@
 package com.ossoftware.ossmartcontrol;
 
 import android.Manifest;
-import android.annotation.SuppressLint;
-import android.app.Dialog;
 import android.bluetooth.BluetoothDevice;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
@@ -25,22 +18,15 @@ import androidx.core.content.ContextCompat;
 
 import com.google.android.material.materialswitch.MaterialSwitch;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 
-import ai.bongotech.bt.BongoBT;
-
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity
+        implements BluetoothManager.BluetoothListener,
+        DeviceDialogManager.DeviceDialogListener {
 
     // UI Components
     private ImageView btnBluetooth;
-    private Button buttonConnect;
     private TextView txtStatus;
     private MaterialSwitch switchFan, switchLight1, switchLight2, switchLight3;
     private LinearLayout connectionStatus;
@@ -51,32 +37,10 @@ public class MainActivity extends AppCompatActivity {
     private TextView txtLogStats;
     private Button btnClearLogs;
 
-    // Bluetooth
-    private BongoBT bongoBT;
-    private Set<String> discoveredDevices = new HashSet<>();
-    private String connectedMac = "";
-    private String connectedDeviceName = "";
-
-    // Dialog
-    private Dialog bluetoothDialog;
-    private LinearLayout dialogDeviceListLayout;
-    private TextView txtScanStatus;
-    private TextView txtSearchStatus;
-    private ImageView loadingAnimation;
-    private Button btnRefresh;
-
-    // Scanning
-    private final Handler scanHandler = new Handler();
-    private static final long SCAN_PERIOD = 15000;
-    private boolean isScanning = false;
-    private int scanTimeRemaining = 15;
-
-    // Logs
-    private List<LogEntry> logEntries = new ArrayList<>();
-    private int sentCount = 0;
-    private int receivedCount = 0;
-    private int errorCount = 0;
-    private int infoCount = 0;
+    // Managers
+    private BluetoothManager bluetoothManager;
+    private LogManager logManager;
+    private DeviceDialogManager dialogManager;
 
     // Permissions
     private static final int REQUEST_BLUETOOTH_PERMISSIONS = 100;
@@ -87,7 +51,11 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         initializeViews();
-        bongoBT = new BongoBT(this);
+
+        // Initialize managers
+        bluetoothManager = new BluetoothManager(this, this);
+        logManager = new LogManager(this, logsContainer, txtEmptyLogs, txtLogStats);
+        dialogManager = new DeviceDialogManager(this, this);
 
         setupSwitchListeners();
         setupButtonListeners();
@@ -99,7 +67,6 @@ public class MainActivity extends AppCompatActivity {
     private void initializeViews() {
         // Main controls
         btnBluetooth = findViewById(R.id.btnBluetooth);
-        buttonConnect = findViewById(R.id.buttonConnect);
         txtStatus = findViewById(R.id.txtStatus);
         connectionStatus = findViewById(R.id.connectionStatus);
 
@@ -122,14 +89,15 @@ public class MainActivity extends AppCompatActivity {
 
     private void setupButtonListeners() {
         btnBluetooth.setOnClickListener(v -> showBluetoothDialog());
-        buttonConnect.setOnClickListener(v -> showBluetoothDialog());
-        btnClearLogs.setOnClickListener(v -> clearLogs());
+        btnClearLogs.setOnClickListener(v -> logManager.clearLogs());
     }
 
     private void setupSwitchListeners() {
         switchFan.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (!connectedMac.isEmpty()) {
-                sendCommand("FAN:" + (isChecked ? "ON" : "OFF"));
+            if (bluetoothManager.isConnected()) {
+                // Convert to Arduino format: FAN:ON -> FAN_ON
+                String command = isChecked ? "FAN:ON" : "FAN:OFF";
+                sendCommand(command);
             } else {
                 Toast.makeText(this, "Please connect to a device first", Toast.LENGTH_SHORT).show();
                 switchFan.setChecked(false);
@@ -137,8 +105,10 @@ public class MainActivity extends AppCompatActivity {
         });
 
         switchLight1.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (!connectedMac.isEmpty()) {
-                sendCommand("LIGHT1:" + (isChecked ? "ON" : "OFF"));
+            if (bluetoothManager.isConnected()) {
+                // Convert to Arduino format: LIGHT1:ON -> LIGHT1_ON
+                String command = isChecked ? "LIGHT1:ON" : "LIGHT1:OFF";
+                sendCommand(command);
             } else {
                 Toast.makeText(this, "Please connect to a device first", Toast.LENGTH_SHORT).show();
                 switchLight1.setChecked(false);
@@ -146,8 +116,10 @@ public class MainActivity extends AppCompatActivity {
         });
 
         switchLight2.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (!connectedMac.isEmpty()) {
-                sendCommand("LIGHT2:" + (isChecked ? "ON" : "OFF"));
+            if (bluetoothManager.isConnected()) {
+                // Convert to Arduino format: LIGHT2:ON -> LIGHT2_ON
+                String command = isChecked ? "LIGHT2:ON" : "LIGHT2:OFF";
+                sendCommand(command);
             } else {
                 Toast.makeText(this, "Please connect to a device first", Toast.LENGTH_SHORT).show();
                 switchLight2.setChecked(false);
@@ -155,8 +127,10 @@ public class MainActivity extends AppCompatActivity {
         });
 
         switchLight3.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (!connectedMac.isEmpty()) {
-                sendCommand("LIGHT3:" + (isChecked ? "ON" : "OFF"));
+            if (bluetoothManager.isConnected()) {
+                // Convert to Arduino format: LIGHT3:ON -> LIGHT3_ON
+                String command = isChecked ? "LIGHT3:ON" : "LIGHT3:OFF";
+                sendCommand(command);
             } else {
                 Toast.makeText(this, "Please connect to a device first", Toast.LENGTH_SHORT).show();
                 switchLight3.setChecked(false);
@@ -165,7 +139,137 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /* =====================
-       SHOW BLUETOOTH DIALOG
+       CONVERT TO ARDUINO FORMAT
+       ===================== */
+    private String convertToArduinoFormat(String command) {
+        if (command.contains(":")) {
+            String[] parts = command.split(":");
+            if (parts.length == 2) {
+                String device = parts[0].toUpperCase();
+                String state = parts[1].toUpperCase();
+
+                // Convert DEVICE:STATE to DEVICE_STATE format
+                return device + "_" + state;
+            }
+        }
+        return command; // Return as-is if no colon found
+    }
+
+    /* =====================
+       SEND COMMAND TO DEVICE
+       ===================== */
+    private void sendCommand(String command) {
+        if (bluetoothManager.isConnected()) {
+            // Convert command to Arduino format
+            String arduinoCommand = convertToArduinoFormat(command);
+
+            bluetoothManager.sendCommand(arduinoCommand);
+
+            // Log the actual command sent to Arduino
+            logManager.addLog("Command sent: " + arduinoCommand, LogManager.LogType.SENT,
+                    bluetoothManager.getConnectedDeviceName());
+            Toast.makeText(this, "Command sent: " + arduinoCommand, Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this, "Please connect to a device first", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /* =====================
+       HANDLE DEVICE MESSAGES
+       ===================== */
+    private void handleDeviceMessage(String message) {
+        // Parse and handle messages from device
+        // Arduino sends back LIGHT1:ON or LIGHT1:OFF format
+        if (message.contains(":")) {
+            String[] parts = message.split(":");
+            if (parts.length == 2) {
+                String device = parts[0];
+                String state = parts[1];
+
+                boolean isOn = state.equals("ON");
+
+                runOnUiThread(() -> {
+                    switch (device) {
+                        case "FAN":
+                            switchFan.setChecked(isOn);
+                            break;
+                        case "LIGHT1":
+                            switchLight1.setChecked(isOn);
+                            break;
+                        case "LIGHT2":
+                            switchLight2.setChecked(isOn);
+                            break;
+                        case "LIGHT3":
+                            switchLight3.setChecked(isOn);
+                            break;
+                        case "STATUS":
+                            // Handle status message
+                            // Format: STATUS:L1=1:L2=0:FAN=1
+                            parseStatusMessage(message);
+                            break;
+                    }
+                });
+            }
+        }
+        // Also handle error messages from Arduino
+        else if (message.startsWith("ERROR:")) {
+            logManager.addLog(message, LogManager.LogType.ERROR,
+                    bluetoothManager.getConnectedDeviceName());
+        }
+        // Handle ALL:ON or ALL:OFF responses
+        else if (message.equals("ALL:ON") || message.equals("ALL:OFF")) {
+            boolean isOn = message.equals("ALL:ON");
+            runOnUiThread(() -> {
+                switchFan.setChecked(isOn);
+                switchLight1.setChecked(isOn);
+                switchLight2.setChecked(isOn);
+                switchLight3.setChecked(isOn);
+            });
+        }
+    }
+
+    /* =====================
+       PARSE STATUS MESSAGE FROM ARDUINO
+       ===================== */
+    private void parseStatusMessage(String statusMessage) {
+        // Format: STATUS:L1=1:L2=0:FAN=1
+        try {
+            String[] parts = statusMessage.split(":");
+            for (String part : parts) {
+                if (part.contains("=")) {
+                    String[] keyValue = part.split("=");
+                    if (keyValue.length == 2) {
+                        String key = keyValue[0];
+                        int value = Integer.parseInt(keyValue[1]);
+                        boolean isOn = value == 1;
+
+                        runOnUiThread(() -> {
+                            switch (key) {
+                                case "L1":
+                                    switchLight1.setChecked(isOn);
+                                    break;
+                                case "L2":
+                                    switchLight2.setChecked(isOn);
+                                    break;
+                                case "FAN":
+                                    switchFan.setChecked(isOn);
+                                    break;
+                                case "L3":
+                                    switchLight3.setChecked(isOn);
+                                    break;
+                            }
+                        });
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logManager.addLog("Error parsing status: " + e.getMessage(),
+                    LogManager.LogType.ERROR, "");
+        }
+    }
+
+    /* =====================
+       BLUETOOTH DIALOG
        ===================== */
     public void showBluetoothDialog() {
         // Check permissions first
@@ -175,356 +279,116 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        bluetoothDialog = new Dialog(this);
-        bluetoothDialog.setContentView(R.layout.dialog_bluetooth_devices);
-        bluetoothDialog.getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-        bluetoothDialog.setCancelable(true);
-
-        // Initialize dialog views
-        dialogDeviceListLayout = bluetoothDialog.findViewById(R.id.deviceListLayout);
-        txtScanStatus = bluetoothDialog.findViewById(R.id.txtScanStatus);
-        txtSearchStatus = bluetoothDialog.findViewById(R.id.txtSearchStatus);
-        loadingAnimation = bluetoothDialog.findViewById(R.id.loadingAnimation);
-        btnRefresh = bluetoothDialog.findViewById(R.id.btnRefresh);
-        Button btnClose = bluetoothDialog.findViewById(R.id.btnClose);
-
-        // Clear previous list
-        dialogDeviceListLayout.removeAllViews();
-        discoveredDevices.clear();
-
-        // Initialize UI state
-        txtScanStatus.setText("Ready to scan");
-        txtScanStatus.setTextColor(Color.BLUE);
-        loadingAnimation.setVisibility(View.GONE);
-        updateDeviceCount();
-
-        // Set up button listeners
-        btnRefresh.setOnClickListener(v -> {
-            if (!isScanning) {
-                startBluetoothScan();
-            } else {
-                stopBluetoothScan();
-            }
-        });
-
-        btnClose.setOnClickListener(v -> {
-            stopBluetoothScan();
-            bluetoothDialog.dismiss();
-        });
-
-        // Show dialog
-        bluetoothDialog.show();
-
-        // Start scanning automatically
-        startBluetoothScan();
+        dialogManager.showDialog();
     }
 
     /* =====================
-       START BLUETOOTH SCAN
+       DEVICE DIALOG LISTENER
        ===================== */
-    private void startBluetoothScan() {
-        if (isScanning) {
-            return;
-        }
+    @Override
+    public void onScanRequested() {
+        bluetoothManager.clearDiscoveredDevices();
+        logManager.addLog("Scanning started", LogManager.LogType.INFO, "");
+        bluetoothManager.startScanning();
+    }
 
-        // Clear device list
-        dialogDeviceListLayout.removeAllViews();
-        discoveredDevices.clear();
-        updateDeviceCount();
+    @Override
+    public void onStopScanRequested() {
+        // Nothing needed here as BluetoothManager handles its own scanning
+    }
 
-        // Update UI for scanning
-        loadingAnimation.setVisibility(View.VISIBLE);
-        txtScanStatus.setText("Scanning... 15s remaining");
-        txtScanStatus.setTextColor(Color.BLUE);
-        btnRefresh.setText("Stop Scanning");
-        btnRefresh.setBackgroundTintList(ContextCompat.getColorStateList(this, android.R.color.holo_red_dark));
-
-        addLog("Scanning started", LogType.INFO, "");
-
-        // Reset timer
-        scanTimeRemaining = 15;
-        isScanning = true;
-
-        // Start animation
-        startScanningAnimation();
-
-        // Start timer
-        scanHandler.postDelayed(scanTimerRunnable, 1000);
-
-        // Start scanning with BongoBT
-        bongoBT.searchDevices(new BongoBT.BtDiscoveryListener() {
-            @Override
-            public void onStarted() {
-                runOnUiThread(() -> {
-                    txtScanStatus.setText("Scanning started... Discovering devices");
-                });
-            }
-
-            @Override
-            public void onDeviceAdded(String name, String mac) {
-                runOnUiThread(() -> {
-                    if (!discoveredDevices.contains(mac)) {
-                        discoveredDevices.add(mac);
-                        String displayName = (name != null && !name.isEmpty()) ? name : "Unknown Device";
-                        addDeviceToDialog(displayName, mac);
-                        updateDeviceCount();
-                        addLog("Found device: " + displayName, LogType.INFO, "");
-                    }
-                });
-            }
-
-            @Override
-            public void onFinished(ArrayList<HashMap<String, String>> arrayList) {
-                runOnUiThread(() -> {
-                    addLog("Scanning finished. Found " + discoveredDevices.size() + " devices", LogType.INFO, "");
-                    stopBluetoothScan();
-                });
-            }
-
-            @Override
-            public void onError(String errorReason) {
-                runOnUiThread(() -> {
-                    addLog("Scan error: " + errorReason, LogType.ERROR, "");
-                    stopBluetoothScan();
-                    txtScanStatus.setText("Error: " + errorReason);
-                    txtScanStatus.setTextColor(Color.RED);
-                    Toast.makeText(MainActivity.this,
-                            "Scan error: " + errorReason,
-                            Toast.LENGTH_LONG).show();
-                });
-            }
-        });
-
-        // Auto-stop after SCAN_PERIOD
-        scanHandler.postDelayed(() -> {
-            if (isScanning) {
-                stopBluetoothScan();
-            }
-        }, SCAN_PERIOD);
+    @Override
+    public void onDeviceConnectRequested(String name, String mac) {
+        dialogManager.updateScanStatus("Connecting to " + name + "...", android.R.color.holo_orange_dark);
+        logManager.addLog("Connecting to " + name + "...", LogManager.LogType.INFO, "");
+        bluetoothManager.connectToDevice(name, mac);
     }
 
     /* =====================
-       SCAN TIMER RUNNABLE
+       BLUETOOTH LISTENER
        ===================== */
-    private final Runnable scanTimerRunnable = new Runnable() {
-        @Override
-        public void run() {
-            if (scanTimeRemaining > 0 && isScanning) {
-                txtScanStatus.setText("Scanning... " + scanTimeRemaining + "s remaining");
-                scanTimeRemaining--;
-                scanHandler.postDelayed(this, 1000);
-            }
-        }
-    };
-
-    /* =====================
-       STOP BLUETOOTH SCAN
-       ===================== */
-    private void stopBluetoothScan() {
-        isScanning = false;
-        scanHandler.removeCallbacks(scanTimerRunnable);
-        stopScanningAnimation();
-
-        if (btnRefresh != null) {
-            btnRefresh.setText("Scan Again");
-            btnRefresh.setBackgroundTintList(ContextCompat.getColorStateList(this, android.R.color.holo_blue_dark));
-        }
-
-        if (txtScanStatus != null) {
-            if (discoveredDevices.isEmpty()) {
-                txtScanStatus.setText("Scan complete. No devices found");
-                txtScanStatus.setTextColor(Color.RED);
-            } else {
-                txtScanStatus.setText("Scan complete");
-                txtScanStatus.setTextColor(Color.GREEN);
-            }
-        }
+    @Override
+    public void onDeviceFound(String name, String mac) {
+        dialogManager.addDevice(name, mac);
+        logManager.addLog("Found device: " + name, LogManager.LogType.INFO, "");
     }
 
-    /* =====================
-       START SCANNING ANIMATION
-       ===================== */
-    private void startScanningAnimation() {
-        if (loadingAnimation != null) {
-            loadingAnimation.setVisibility(View.VISIBLE);
-            loadingAnimation.animate()
-                    .rotationBy(360)
-                    .setDuration(1000)
-                    .setInterpolator(null)
-                    .withEndAction(() -> {
-                        if (isScanning) {
-                            startScanningAnimation();
-                        }
-                    })
-                    .start();
-        }
+    @Override
+    public void onScanStarted() {
+        // UI already updated by dialog manager
     }
 
-    /* =====================
-       STOP SCANNING ANIMATION
-       ===================== */
-    private void stopScanningAnimation() {
-        if (loadingAnimation != null) {
-            loadingAnimation.setVisibility(View.GONE);
-            loadingAnimation.clearAnimation();
-        }
+    @Override
+    public void onScanFinished(int deviceCount) {
+        dialogManager.stopScanning();
+        logManager.addLog("Scanning finished. Found " + deviceCount + " devices", LogManager.LogType.INFO, "");
     }
 
-    /* =====================
-       ADD DEVICE TO DIALOG
-       ===================== */
-    private void addDeviceToDialog(String name, String mac) {
-        // Inflate device item layout
-        View deviceView = LayoutInflater.from(this).inflate(R.layout.item_device, null);
+    @Override
+    public void onScanError(String error) {
+        dialogManager.stopScanning();
+        dialogManager.updateScanStatus("Error: " + error, android.R.color.holo_red_dark);
+        logManager.addLog("Scan error: " + error, LogManager.LogType.ERROR, "");
+        Toast.makeText(this, "Scan error: " + error, Toast.LENGTH_LONG).show();
+    }
 
-        TextView deviceName = deviceView.findViewById(R.id.deviceName);
-        TextView deviceMac = deviceView.findViewById(R.id.deviceMac);
-        Button btnConnect = deviceView.findViewById(R.id.btnConnect);
+    @Override
+    public void onConnected(String deviceName, String mac) {
+        // Update UI
+        connectionStatus.setVisibility(View.VISIBLE);
+        txtStatus.setText("Connected to: " + deviceName);
+        txtStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_dark));
 
-        deviceName.setText(name);
-        deviceMac.setText(mac);
+        // Enable switches
+        enableSwitches(true);
 
-        // Set button state
-        if (mac.equals(connectedMac)) {
-            btnConnect.setText("Connected");
-            btnConnect.setEnabled(false);
-            btnConnect.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_green_dark));
-            btnConnect.setTextColor(Color.WHITE);
-        } else {
-            btnConnect.setText("Connect");
-            btnConnect.setEnabled(true);
-            btnConnect.setBackgroundColor(ContextCompat.getColor(this, android.R.color.holo_blue_dark));
-            btnConnect.setTextColor(Color.WHITE);
+        // Get connected device info
+        BluetoothDevice device = bluetoothManager.getConnectedDevice();
+        if (device != null) {
+            String connectedName = device.getName();
+            logManager.addLog("Connected to: " + connectedName, LogManager.LogType.INFO, "");
+            Toast.makeText(this, "Connected to: " + connectedName, Toast.LENGTH_SHORT).show();
+
+            // Send STATUS command to sync switch states
+            sendCommand("STATUS");
         }
 
-        // Set click listener
-        btnConnect.setOnClickListener(v -> {
-            if (!mac.equals(connectedMac)) {
-                connectDevice(name, mac);
-                btnConnect.setText("Connecting...");
-                btnConnect.setEnabled(false);
+        // Close dialog after delay
+        new android.os.Handler().postDelayed(() -> {
+            if (dialogManager.isDialogShowing()) {
+                dialogManager.dismissDialog();
             }
-        });
-
-        // Add to dialog layout
-        dialogDeviceListLayout.addView(deviceView);
+        }, 1500);
     }
 
-    /* =====================
-       UPDATE DEVICE COUNT
-       ===================== */
-    private void updateDeviceCount() {
-        if (txtSearchStatus != null) {
-            int count = discoveredDevices.size();
-            txtSearchStatus.setText("Found " + count + " device(s)");
-        }
+    @Override
+    public void onDisconnected() {
+        connectionStatus.setVisibility(View.GONE);
+        enableSwitches(false);
     }
 
-    /* =====================
-       CONNECT DEVICE
-       ===================== */
-    private void connectDevice(String name, String mac) {
-        // Stop scanning when connecting
-        stopBluetoothScan();
+    @Override
+    public void onConnectionError(String error) {
+        connectionStatus.setVisibility(View.GONE);
+        enableSwitches(false);
 
-        if (txtScanStatus != null) {
-            txtScanStatus.setText("Connecting to " + name + "...");
-            txtScanStatus.setTextColor(Color.parseColor("#FF9800"));
+        if (dialogManager.isDialogShowing()) {
+            dialogManager.updateScanStatus("Connection failed: " + error, android.R.color.holo_red_dark);
         }
 
-        addLog("Connecting to " + name + "...", LogType.INFO, "");
-
-        bongoBT.connectTo(mac, new BongoBT.BtConnectListener() {
-            @SuppressLint("MissingPermission")
-            @Override
-            public void onConnected() {
-                runOnUiThread(() -> {
-                    connectedMac = mac;
-                    connectedDeviceName = name;
-
-                    // Update main activity status
-                    updateConnectionStatus();
-
-                    // Get connected device info
-                    BluetoothDevice device = bongoBT.getConnectedDevice();
-                    if (device != null) {
-                        String deviceName = device.getName();
-                        String deviceMac = device.getAddress();
-                        addLog("Connected to: " + deviceName, LogType.INFO, "");
-                        Toast.makeText(MainActivity.this,
-                                "Connected to: " + deviceName,
-                                Toast.LENGTH_SHORT).show();
-                    }
-
-                    // Enable switches
-                    enableSwitches(true);
-
-                    // Close dialog after delay
-                    new Handler().postDelayed(() -> {
-                        if (bluetoothDialog != null && bluetoothDialog.isShowing()) {
-                            bluetoothDialog.dismiss();
-                        }
-                    }, 1500);
-                });
-            }
-
-            @Override
-            public void onReceived(String message) {
-                runOnUiThread(() -> {
-                    // Handle incoming messages from device
-                    handleDeviceMessage(message);
-                    addLog("Received: " + message, LogType.RECEIVED, connectedDeviceName);
-                    Toast.makeText(MainActivity.this,
-                            "Received: " + message,
-                            Toast.LENGTH_SHORT).show();
-                });
-            }
-
-            @Override
-            public void onError(String reason) {
-                runOnUiThread(() -> {
-                    connectedMac = "";
-                    connectedDeviceName = "";
-
-                    // Update main activity status
-                    updateConnectionStatus();
-
-                    // Disable switches
-                    enableSwitches(false);
-
-                    addLog("Connection failed: " + reason, LogType.ERROR, "");
-
-                    if (txtScanStatus != null) {
-                        txtScanStatus.setText("Connection failed: " + reason);
-                        txtScanStatus.setTextColor(Color.RED);
-                    }
-
-                    Toast.makeText(MainActivity.this,
-                            "Connection failed: " + reason,
-                            Toast.LENGTH_LONG).show();
-                });
-            }
-        });
+        logManager.addLog("Connection failed: " + error, LogManager.LogType.ERROR, "");
+        Toast.makeText(this, "Connection failed: " + error, Toast.LENGTH_LONG).show();
     }
 
-    /* =====================
-       UPDATE CONNECTION STATUS
-       ===================== */
-    private void updateConnectionStatus() {
-        runOnUiThread(() -> {
-            if (!connectedMac.isEmpty()) {
-                connectionStatus.setVisibility(View.VISIBLE);
-                txtStatus.setText("Connected to: " + connectedDeviceName);
-                txtStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_dark));
-            } else {
-                connectionStatus.setVisibility(View.GONE);
-            }
-        });
+    @Override
+    public void onMessageReceived(String message) {
+        handleDeviceMessage(message);
+        logManager.addLog("Received: " + message, LogManager.LogType.RECEIVED,
+                bluetoothManager.getConnectedDeviceName());
+        // Toast message is now optional - can comment out if too many toasts
+        // Toast.makeText(this, "Received: " + message, Toast.LENGTH_SHORT).show();
     }
 
-    /* =====================
-       ENABLE/DISABLE SWITCHES
-       ===================== */
     private void enableSwitches(boolean enable) {
         switchFan.setEnabled(enable);
         switchLight1.setEnabled(enable);
@@ -541,171 +405,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /* =====================
-       SEND COMMAND TO DEVICE
-       ===================== */
-    private void sendCommand(String command) {
-        if (!connectedMac.isEmpty()) {
-            bongoBT.sendCommand(command);
-            addLog("Command sent: " + command, LogType.SENT, connectedDeviceName);
-            Toast.makeText(this, "Command sent: " + command, Toast.LENGTH_SHORT).show();
-        } else {
-            Toast.makeText(this, "Please connect to a device first", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    /* =====================
-       HANDLE DEVICE MESSAGES
-       ===================== */
-    private void handleDeviceMessage(String message) {
-        runOnUiThread(() -> {
-            // Parse and handle messages from device
-            if (message.contains(":")) {
-                String[] parts = message.split(":");
-                if (parts.length == 2) {
-                    String device = parts[0];
-                    String state = parts[1];
-
-                    boolean isOn = state.equals("ON");
-
-                    switch (device) {
-                        case "FAN":
-                            switchFan.setChecked(isOn);
-                            break;
-                        case "LIGHT1":
-                            switchLight1.setChecked(isOn);
-                            break;
-                        case "LIGHT2":
-                            switchLight2.setChecked(isOn);
-                            break;
-                        case "LIGHT3":
-                            switchLight3.setChecked(isOn);
-                            break;
-                    }
-                }
-            }
-        });
-    }
-
-    /* =====================
-       LOG SYSTEM
-       ===================== */
-
-    // Log Entry class
-    private enum LogType {
-        SENT, RECEIVED, ERROR, INFO
-    }
-
-    private class LogEntry {
-        LogType type;
-        String message;
-        String deviceName;
-        String timestamp;
-
-        LogEntry(LogType type, String message, String deviceName) {
-            this.type = type;
-            this.message = message;
-            this.deviceName = deviceName;
-            this.timestamp = new SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new Date());
-        }
-    }
-
-    private void addLog(String message, LogType type, String deviceName) {
-        runOnUiThread(() -> {
-            LogEntry logEntry = new LogEntry(type, message, deviceName);
-            logEntries.add(0, logEntry); // Add to top
-
-            // Update counts
-            switch (type) {
-                case SENT: sentCount++; break;
-                case RECEIVED: receivedCount++; break;
-                case ERROR: errorCount++; break;
-                case INFO: infoCount++; break;
-            }
-
-            // Add log to UI
-            addLogToUI(logEntry);
-
-            updateEmptyState();
-            updateStats();
-        });
-    }
-
-    private void addLogToUI(LogEntry logEntry) {
-        // Inflate log item layout
-        View logView = LayoutInflater.from(this).inflate(R.layout.item_log, null);
-
-        TextView logIcon = logView.findViewById(R.id.logIcon);
-        TextView logMessage = logView.findViewById(R.id.logMessage);
-        TextView logTime = logView.findViewById(R.id.logTime);
-        TextView logDevice = logView.findViewById(R.id.logDevice);
-
-        logMessage.setText(logEntry.message);
-        logTime.setText(logEntry.timestamp);
-
-        // Set icon and background based on type
-        switch (logEntry.type) {
-            case SENT:
-                logIcon.setText("→");
-                logIcon.setBackgroundResource(R.drawable.log_icon_bg_sent);
-                break;
-            case RECEIVED:
-                logIcon.setText("←");
-                logIcon.setBackgroundResource(R.drawable.log_icon_bg_received);
-                break;
-            case ERROR:
-                logIcon.setText("!");
-                logIcon.setBackgroundResource(R.drawable.log_icon_bg_error);
-                break;
-            case INFO:
-                logIcon.setText("i");
-                logIcon.setBackgroundResource(R.drawable.log_icon_bg_info);
-                break;
-        }
-
-        // Show device info for received messages
-        if (logEntry.deviceName != null && !logEntry.deviceName.isEmpty()) {
-            logDevice.setText("From: " + logEntry.deviceName);
-            logDevice.setVisibility(View.VISIBLE);
-        } else {
-            logDevice.setVisibility(View.GONE);
-        }
-
-        // Add to logs container at the top
-        logsContainer.addView(logView, 0);
-    }
-
-    private void updateEmptyState() {
-        if (txtEmptyLogs != null) {
-            txtEmptyLogs.setVisibility(logEntries.isEmpty() ? View.VISIBLE : View.GONE);
-        }
-    }
-
-    private void updateStats() {
-        if (txtLogStats != null) {
-            int total = logEntries.size();
-            txtLogStats.setText(String.format("Total: %d | Sent: %d | Received: %d | Errors: %d | Info: %d",
-                    total, sentCount, receivedCount, errorCount, infoCount));
-        }
-    }
-
-    private void clearLogs() {
-        logEntries.clear();
-        logsContainer.removeAllViews();
-        sentCount = 0;
-        receivedCount = 0;
-        errorCount = 0;
-        infoCount = 0;
-
-        updateEmptyState();
-        updateStats();
-    }
-
-    /* =====================
        PERMISSIONS
        ===================== */
 
     private boolean checkPermissions() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
             return ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED &&
                     ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED;
         } else {
@@ -716,7 +420,7 @@ public class MainActivity extends AppCompatActivity {
     private void checkBluetoothPermissions() {
         List<String> permissionsNeeded = new ArrayList<>();
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
                 permissionsNeeded.add(Manifest.permission.BLUETOOTH_SCAN);
             }
@@ -761,20 +465,13 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
 
-        // Stop scanning
-        stopBluetoothScan();
-
-        // Disconnect BongoBT
-        if (bongoBT != null) {
-            bongoBT.disconnect();
+        // Clean up managers
+        if (bluetoothManager != null) {
+            bluetoothManager.disconnect();
         }
 
-        // Dismiss dialog
-        if (bluetoothDialog != null && bluetoothDialog.isShowing()) {
-            bluetoothDialog.dismiss();
+        if (dialogManager != null) {
+            dialogManager.dismissDialog();
         }
-
-        // Remove callbacks
-        scanHandler.removeCallbacksAndMessages(null);
     }
 }
