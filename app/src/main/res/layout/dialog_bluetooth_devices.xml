@@ -9,28 +9,28 @@
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Bluetooth Devices"
-        android:textSize="20sp"
-        android:textStyle="bold"
         android:gravity="center"
         android:paddingBottom="16dp"
-        android:textColor="#333" />
+        android:text="Bluetooth Devices"
+        android:textColor="#333"
+        android:textSize="20sp"
+        android:textStyle="bold" />
 
     <!-- Scan Button and Status -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
+        android:layout_marginBottom="16dp"
         android:gravity="center_vertical"
-        android:layout_marginBottom="16dp">
+        android:orientation="horizontal">
 
         <Button
             android:id="@+id/btnRefresh"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Start Scanning"
             android:backgroundTint="#2196F3"
+            android:text="Start Scanning"
             android:textColor="#FFFFFF" />
 
         <!-- Loading Animation -->
@@ -39,8 +39,9 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:layout_marginLeft="16dp"
-            android:visibility="gone"
-            android:contentDescription="Scanning" />
+            android:contentDescription="Scanning"
+            android:src="@drawable/ic_bluetooth"
+            android:visibility="gone" />
 
     </LinearLayout>
 
@@ -49,64 +50,58 @@
         android:id="@+id/txtScanStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Ready to scan"
-        android:textSize="14sp"
-        android:textColor="#2196F3"
+        android:layout_marginBottom="8dp"
         android:gravity="center"
         android:padding="8dp"
-        android:layout_marginBottom="8dp" />
+        android:text="Ready to scan"
+        android:textColor="#2196F3"
+        android:textSize="14sp" />
 
     <!-- Device List Container -->
-    <LinearLayout
+    <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical">
+        android:paddingBottom="8dp"
+        android:text="Available Devices:"
+        android:textColor="#333"
+        android:textSize="16sp"
+        android:textStyle="bold" />
 
-        <TextView
+    <ScrollView
+        android:id="@+id/scrollView"
+        android:layout_width="match_parent"
+        android:layout_height="250dp"
+        android:background="#F5F5F5"
+        android:padding="4dp">
+
+        <LinearLayout
+            android:id="@+id/deviceListLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Available Devices:"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:textColor="#333"
-            android:paddingBottom="8dp" />
+            android:orientation="vertical" />
 
-        <ScrollView
-            android:layout_width="match_parent"
-            android:layout_height="300dp"
-            android:background="#F5F5F5"
-            android:padding="4dp">
-
-            <LinearLayout
-                android:id="@+id/deviceListLayout"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical" />
-
-        </ScrollView>
-
-    </LinearLayout>
+    </ScrollView>
 
     <!-- Status Text -->
     <TextView
         android:id="@+id/txtSearchStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Found 0 device(s)"
-        android:textSize="14sp"
-        android:textColor="#666"
+        android:layout_marginTop="8dp"
         android:gravity="center"
         android:padding="8dp"
-        android:layout_marginTop="8dp" />
+        android:text="Found 0 device(s)"
+        android:textColor="#666"
+        android:textSize="14sp" />
 
     <!-- Close Button -->
     <Button
         android:id="@+id/btnClose"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Close"
         android:layout_marginTop="16dp"
         android:backgroundTint="#757575"
+        android:text="Close"
         android:textColor="#FFFFFF" />
 
 </LinearLayout>

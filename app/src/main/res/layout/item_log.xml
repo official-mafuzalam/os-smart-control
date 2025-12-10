@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:layout_marginBottom="8dp"
+    android:background="@drawable/log_item_background">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <!-- Log Type Icon -->
+        <TextView
+            android:id="@+id/logIcon"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:gravity="center"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:background="@drawable/log_icon_bg_sent"
+            android:layout_marginEnd="12dp" />
+
+        <!-- Log Message -->
+        <TextView
+            android:id="@+id/logMessage"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Message content"
+            android:textSize="14sp"
+            android:textColor="#333"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <!-- Timestamp -->
+        <TextView
+            android:id="@+id/logTime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="12:00:00"
+            android:textSize="12sp"
+            android:textColor="#666"
+            android:layout_marginStart="8dp" />
+
+    </LinearLayout>
+
+    <!-- Device Info (for received messages) -->
+    <TextView
+        android:id="@+id/logDevice"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="From: Device Name"
+        android:textSize="12sp"
+        android:textColor="#666"
+        android:layout_marginTop="4dp"
+        android:visibility="gone" />
+
+</LinearLayout>
