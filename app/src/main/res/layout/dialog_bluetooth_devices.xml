@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- Dialog Title -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Bluetooth Devices"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:paddingBottom="16dp"
+        android:textColor="#333" />
+
+    <!-- Scan Button and Status -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="16dp">
+
+        <Button
+            android:id="@+id/btnRefresh"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Start Scanning"
+            android:backgroundTint="#2196F3"
+            android:textColor="#FFFFFF" />
+
+        <!-- Loading Animation -->
+        <ImageView
+            android:id="@+id/loadingAnimation"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginLeft="16dp"
+            android:visibility="gone"
+            android:contentDescription="Scanning" />
+
+    </LinearLayout>
+
+    <!-- Scanning Status -->
+    <TextView
+        android:id="@+id/txtScanStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Ready to scan"
+        android:textSize="14sp"
+        android:textColor="#2196F3"
+        android:gravity="center"
+        android:padding="8dp"
+        android:layout_marginBottom="8dp" />
+
+    <!-- Device List Container -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Available Devices:"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#333"
+            android:paddingBottom="8dp" />
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="300dp"
+            android:background="#F5F5F5"
+            android:padding="4dp">
+
+            <LinearLayout
+                android:id="@+id/deviceListLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+        </ScrollView>
+
+    </LinearLayout>
+
+    <!-- Status Text -->
+    <TextView
+        android:id="@+id/txtSearchStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Found 0 device(s)"
+        android:textSize="14sp"
+        android:textColor="#666"
+        android:gravity="center"
+        android:padding="8dp"
+        android:layout_marginTop="8dp" />
+
+    <!-- Close Button -->
+    <Button
+        android:id="@+id/btnClose"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Close"
+        android:layout_marginTop="16dp"
+        android:backgroundTint="#757575"
+        android:textColor="#FFFFFF" />
+
+</LinearLayout>
