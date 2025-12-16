@@ -5,42 +5,22 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#F4F6F8"
+    android:fitsSystemWindows="true"
     android:orientation="vertical"
     tools:context=".MainActivity">
 
-    <!-- Custom Title Bar with Bluetooth Icon -->
-    <LinearLayout
+
+    <!-- Default ActionBar/Toolbar -->
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="?attr/actionBarSize"
         android:background="#2196F3"
         android:elevation="4dp"
-        android:orientation="horizontal"
-        android:padding="16dp">
+        android:fitsSystemWindows="true"
+        app:titleTextColor="#FFFFFF" />
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Smart Home Control"
-            android:textColor="#FFFFFF"
-            android:textSize="22sp"
-            android:textStyle="bold" />
-
-        <ImageView
-            android:id="@+id/btnBluetooth"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_gravity="center_vertical"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:clickable="true"
-            android:contentDescription="Bluetooth Devices"
-            android:focusable="true"
-            android:padding="8dp"
-            android:src="@drawable/ic_bluetooth" />
-
-    </LinearLayout>
-
-    <!-- Status Indicator -->
+    <!-- Status Indicator (Now below ActionBar) -->
     <LinearLayout
         android:id="@+id/connectionStatus"
         android:layout_width="match_parent"

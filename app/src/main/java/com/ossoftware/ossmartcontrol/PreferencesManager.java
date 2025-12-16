@@ -3,75 +3,89 @@ package com.ossoftware.ossmartcontrol;
 import android.content.Context;
 import android.content.SharedPreferences;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import org.json.JSONException;
+import org.json.JSONObject;
 
-import java.lang.reflect.Type;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 public class PreferencesManager {
 
     private static final String PREF_NAME = "SmartHomePrefs";
     private static final String KEY_DEVICES = "devices";
+    private static final String KEY_FIRST_RUN = "first_run";
 
     private SharedPreferences sharedPreferences;
-    private Gson gson;
 
     public PreferencesManager(Context context) {
         sharedPreferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-        gson = new Gson();
+
+        // Check if first run
+        if (sharedPreferences.getBoolean(KEY_FIRST_RUN, true)) {
+            // Create default switches for first run
+            createDefaultSwitches();
+            sharedPreferences.edit().putBoolean(KEY_FIRST_RUN, false).apply();
+        }
     }
 
     // Save all devices
     public void saveDevices(Map<String, DeviceModel> devices) {
-        String json = gson.toJson(devices);
-        sharedPreferences.edit().putString(KEY_DEVICES, json).apply();
+        try {
+            JSONObject devicesJson = new JSONObject();
+            for (Map.Entry<String, DeviceModel> entry : devices.entrySet()) {
+                devicesJson.put(entry.getKey(), entry.getValue().toJson());
+            }
+            sharedPreferences.edit().putString(KEY_DEVICES, devicesJson.toString()).apply();
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
     }
 
     // Load all devices
     public Map<String, DeviceModel> loadDevices() {
-        String json = sharedPreferences.getString(KEY_DEVICES, "");
+        String jsonStr = sharedPreferences.getString(KEY_DEVICES, "");
 
-        if (json.isEmpty()) {
-            return createDefaultDevices();
+        if (jsonStr.isEmpty()) {
+            return new HashMap<>();
         }
 
-        Type type = new TypeToken<HashMap<String, DeviceModel>>() {
-        }.getType();
-        Map<String, DeviceModel> devices = gson.fromJson(json, type);
+        try {
+            Map<String, DeviceModel> devices = new HashMap<>();
+            JSONObject devicesJson = new JSONObject(jsonStr);
 
-        if (devices == null) {
-            return createDefaultDevices();
+            Iterator<String> keys = devicesJson.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                String deviceJsonStr = devicesJson.getString(key);
+                DeviceModel device = DeviceModel.fromJson(deviceJsonStr);
+                if (device != null) {
+                    devices.put(key, device);
+                }
+            }
+
+            return devices;
+        } catch (JSONException e) {
+            e.printStackTrace();
+            return new HashMap<>();
         }
-
-        return devices;
     }
 
-    // Save single device
-    public void saveDevice(String deviceId, DeviceModel device) {
-        Map<String, DeviceModel> devices = loadDevices();
-        devices.put(deviceId, device);
-        saveDevices(devices);
-    }
-
-    // Load single device
-    public DeviceModel loadDevice(String deviceId) {
-        Map<String, DeviceModel> devices = loadDevices();
-        return devices.get(deviceId);
-    }
-
-    // Create default devices
-    private Map<String, DeviceModel> createDefaultDevices() {
+    // Create default switches
+    private void createDefaultSwitches() {
         Map<String, DeviceModel> devices = new HashMap<>();
 
-        // Default devices with Arduino format commands
-        devices.put("FAN", new DeviceModel("FAN", "Ceiling Fan", "FAN_ON", "FAN_OFF"));
-        devices.put("LIGHT1", new DeviceModel("LIGHT1", "Living Room Light", "LIGHT1_ON", "LIGHT1_OFF"));
-        devices.put("LIGHT2", new DeviceModel("LIGHT2", "Bedroom Light", "LIGHT2_ON", "LIGHT2_OFF"));
-        devices.put("LIGHT3", new DeviceModel("LIGHT3", "Kitchen Light", "LIGHT3_ON", "LIGHT3_OFF"));
+        // Create 4 default switches
+        for (int i = 1; i <= 4; i++) {
+            DeviceModel device = new DeviceModel(
+                    i,
+                    "Switch " + i,
+                    "SWITCH" + i + "_ON",
+                    "SWITCH" + i + "_OFF"
+            );
+            devices.put(device.getId(), device);
+        }
 
         saveDevices(devices);
-        return devices;
     }
 }

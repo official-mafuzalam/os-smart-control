@@ -5,17 +5,19 @@ import android.bluetooth.BluetoothDevice;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
-import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
+import android.view.Window;
 import android.widget.Button;
-import android.widget.ImageView;
+import android.widget.GridView;
 import android.widget.LinearLayout;
-import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
@@ -28,13 +30,13 @@ public class MainActivity extends AppCompatActivity
         implements BluetoothManager.BluetoothListener,
         DeviceDialogManager.DeviceDialogListener,
         DeviceSettingsDialog.OnDeviceSettingsListener,
-        AddSwitchesDialog.OnSwitchesCreatedListener {
+        AddSwitchesDialog.OnSwitchesCreatedListener,
+        SwitchGridAdapter.OnSwitchClickListener {
 
     // UI Components
-    private ImageView btnBluetooth;
     private TextView txtStatus;
     private LinearLayout connectionStatus;
-    private LinearLayout switchesContainer;
+    private GridView switchesGrid;
     private Button btnAddSwitches;
 
     // Logs UI
@@ -52,6 +54,7 @@ public class MainActivity extends AppCompatActivity
     // Device data
     private Map<String, DeviceModel> devices;
     private List<DeviceModel> switchList;
+    private SwitchGridAdapter gridAdapter;
 
     // Current device being edited
     private String currentEditingDeviceId;
@@ -63,6 +66,14 @@ public class MainActivity extends AppCompatActivity
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        // Setup ActionBar/Toolbar
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        getSupportActionBar().setTitle("Smart Home Control");
+        Window window = getWindow();
+        window.setStatusBarColor(ContextCompat.getColor(this, R.color.toolbar_blue));
+
 
         initializeViews();
 
@@ -76,6 +87,10 @@ public class MainActivity extends AppCompatActivity
         devices = preferencesManager.loadDevices();
         switchList = new ArrayList<>();
 
+        // Initialize grid adapter
+        gridAdapter = new SwitchGridAdapter(this, switchList, this);
+        switchesGrid.setAdapter(gridAdapter);
+
         setupButtonListeners();
         loadSwitchesFromPreferences();
 
@@ -83,12 +98,29 @@ public class MainActivity extends AppCompatActivity
         checkBluetoothPermissions();
     }
 
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.main_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        int id = item.getItemId();
+
+        if (id == R.id.action_bluetooth) {
+            showBluetoothDialog();
+            return true;
+        }
+
+        return super.onOptionsItemSelected(item);
+    }
+
     private void initializeViews() {
         // Main controls
-        btnBluetooth = findViewById(R.id.btnBluetooth);
         txtStatus = findViewById(R.id.txtStatus);
         connectionStatus = findViewById(R.id.connectionStatus);
-        switchesContainer = findViewById(R.id.switchesContainer);
+        switchesGrid = findViewById(R.id.switchesGrid);
         btnAddSwitches = findViewById(R.id.btnAddSwitches);
 
         // Logs
@@ -102,24 +134,81 @@ public class MainActivity extends AppCompatActivity
     }
 
     private void setupButtonListeners() {
-        btnBluetooth.setOnClickListener(v -> showBluetoothDialog());
         btnClearLogs.setOnClickListener(v -> logManager.clearLogs());
         btnAddSwitches.setOnClickListener(v -> showAddSwitchesDialog());
     }
 
     private void showAddSwitchesDialog() {
         AddSwitchesDialog dialog = new AddSwitchesDialog(this, this);
+        // Pre-fill with current switch count
+        dialog.setCurrentCount(switchList.size());
         dialog.show();
     }
 
     @Override
     public void onSwitchesCreated(int count) {
-        createSwitches(count);
+        updateSwitchesCount(count);
+    }
+
+    private void updateSwitchesCount(int newCount) {
+        if (newCount == switchList.size()) {
+            Toast.makeText(this, "Number of switches is already " + newCount, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (newCount > switchList.size()) {
+            // Add new switches
+            addNewSwitches(newCount);
+        } else {
+            // Remove extra switches (keep first 'newCount' switches)
+            removeExtraSwitches(newCount);
+        }
+
+        // Update grid adapter
+        gridAdapter.updateAllSwitches(switchList);
+
+        // Save to preferences
+        saveSwitchesToPreferences();
+
+        // Force refresh the grid
+        switchesGrid.invalidateViews();
+        switchesGrid.requestLayout();
+
+        Toast.makeText(this, "Updated to " + newCount + " switches", Toast.LENGTH_SHORT).show();
+    }
+
+    private void addNewSwitches(int newCount) {
+        int currentCount = switchList.size();
+
+        for (int i = currentCount + 1; i <= newCount; i++) {
+            DeviceModel device = new DeviceModel(
+                    i,
+                    "Switch " + i,
+                    "SWITCH" + i + "_ON",
+                    "SWITCH" + i + "_OFF"
+            );
+
+            switchList.add(device);
+        }
+    }
+
+    private void removeExtraSwitches(int newCount) {
+        // Keep only first 'newCount' switches
+        if (newCount >= 1 && newCount <= switchList.size()) {
+            // Create a new list with first 'newCount' switches
+            List<DeviceModel> newList = new ArrayList<>();
+            for (int i = 0; i < newCount; i++) {
+                newList.add(switchList.get(i));
+            }
+
+            // Clear and add back the kept switches
+            switchList.clear();
+            switchList.addAll(newList);
+        }
     }
 
     private void createSwitches(int count) {
         // Clear existing switches
-        switchesContainer.removeAllViews();
         switchList.clear();
 
         // Create new switches
@@ -132,55 +221,43 @@ public class MainActivity extends AppCompatActivity
             );
 
             switchList.add(device);
-
-            // Create switch view
-            View switchView = LayoutInflater.from(this).inflate(R.layout.item_switch, switchesContainer, false);
-
-            TextView txtSwitchName = switchView.findViewById(R.id.txtSwitchName);
-            RelativeLayout btnSwitchToggle = switchView.findViewById(R.id.btnSwitchToggle);
-            TextView txtSwitchState = switchView.findViewById(R.id.txtSwitchState);
-
-            txtSwitchName.setText(device.getName());
-            updateSwitchUI(btnSwitchToggle, txtSwitchState, device.isOn());
-
-            final int switchIndex = i;
-            final DeviceModel currentDevice = device;
-
-            // Toggle on click
-            btnSwitchToggle.setOnClickListener(v -> {
-                boolean newState = !currentDevice.isOn();
-                currentDevice.setOn(newState);
-                updateSwitchUI(btnSwitchToggle, txtSwitchState, newState);
-
-                if (bluetoothManager.isConnected()) {
-                    String command = newState ? currentDevice.getCommandOn() : currentDevice.getCommandOff();
-                    sendCommandToDevice(command, "SWITCH" + switchIndex);
-                }
-            });
-
-            // Long click for settings
-            switchView.setOnLongClickListener(v -> {
-                showSwitchSettingsDialog(currentDevice);
-                return true;
-            });
-
-            switchesContainer.addView(switchView);
         }
+
+        // Update grid adapter
+        gridAdapter.updateAllSwitches(switchList);
 
         // Save to preferences
         saveSwitchesToPreferences();
 
+        // Force refresh the grid
+        switchesGrid.invalidateViews();
+        switchesGrid.requestLayout();
+
         Toast.makeText(this, "Created " + count + " switches", Toast.LENGTH_SHORT).show();
     }
 
-    private void updateSwitchUI(RelativeLayout switchButton, TextView stateText, boolean isOn) {
-        if (isOn) {
-            switchButton.setBackgroundResource(R.drawable.bg_switch_on);
-            stateText.setText("ON");
-        } else {
-            switchButton.setBackgroundResource(R.drawable.bg_switch_off);
-            stateText.setText("OFF");
+    @Override
+    public void onSwitchClick(int position, DeviceModel device) {
+        // Toggle switch state
+        boolean newState = !device.isOn();
+        device.setOn(newState);
+
+        // Update UI
+        gridAdapter.updateSwitchState(position, newState);
+
+        if (bluetoothManager.isConnected()) {
+            String command = newState ? device.getCommandOn() : device.getCommandOff();
+            sendCommandToDevice(command, "SWITCH" + device.getIndex());
         }
+
+        // Save state
+        saveSwitchesToPreferences();
+    }
+
+    @Override
+    public void onSwitchLongClick(int position, DeviceModel device) {
+        // Show settings dialog
+        showSwitchSettingsDialog(device);
     }
 
     private void showSwitchSettingsDialog(DeviceModel device) {
@@ -202,27 +279,12 @@ public class MainActivity extends AppCompatActivity
             }
 
             // Update UI
-            updateSwitchInUI(updatedDevice);
+            gridAdapter.updateAllSwitches(switchList);
 
             // Save to preferences
             saveSwitchesToPreferences();
 
             Toast.makeText(this, "Switch settings saved", Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void updateSwitchInUI(DeviceModel device) {
-        for (int i = 0; i < switchesContainer.getChildCount(); i++) {
-            View switchView = switchesContainer.getChildAt(i);
-            TextView txtSwitchName = switchView.findViewById(R.id.txtSwitchName);
-            RelativeLayout btnSwitchToggle = switchView.findViewById(R.id.btnSwitchToggle);
-            TextView txtSwitchState = switchView.findViewById(R.id.txtSwitchState);
-
-            if (txtSwitchName.getText().toString().equals(device.getName())) {
-                txtSwitchName.setText(device.getName());
-                updateSwitchUI(btnSwitchToggle, txtSwitchState, device.isOn());
-                break;
-            }
         }
     }
 
@@ -259,54 +321,39 @@ public class MainActivity extends AppCompatActivity
         // Sort by index
         switchList.sort((d1, d2) -> Integer.compare(d1.getIndex(), d2.getIndex()));
 
-        // If no switches found, create 4 by default
+        // If no switches found, create 4 by default (FIRST INSTALL)
         if (switchList.isEmpty()) {
-            createSwitches(4);
+            createDefaultSwitches();
         } else {
-            // Recreate UI from loaded switches
-            recreateSwitchesUI();
+            // Update grid adapter
+            gridAdapter.updateAllSwitches(switchList);
         }
     }
 
-    private void recreateSwitchesUI() {
-        switchesContainer.removeAllViews();
+    private void createDefaultSwitches() {
+        // Create 4 default switches for first-time users
+        for (int i = 1; i <= 4; i++) {
+            DeviceModel device = new DeviceModel(
+                    i,
+                    "Switch " + i,
+                    "SWITCH" + i + "_ON",
+                    "SWITCH" + i + "_OFF"
+            );
 
-        for (DeviceModel device : switchList) {
-            View switchView = LayoutInflater.from(this).inflate(R.layout.item_switch, switchesContainer, false);
-
-            TextView txtSwitchName = switchView.findViewById(R.id.txtSwitchName);
-            RelativeLayout btnSwitchToggle = switchView.findViewById(R.id.btnSwitchToggle);
-            TextView txtSwitchState = switchView.findViewById(R.id.txtSwitchState);
-
-            txtSwitchName.setText(device.getName());
-            updateSwitchUI(btnSwitchToggle, txtSwitchState, device.isOn());
-
-            final DeviceModel currentDevice = device;
-            final int switchIndex = device.getIndex();
-
-            // Toggle on click
-            btnSwitchToggle.setOnClickListener(v -> {
-                boolean newState = !currentDevice.isOn();
-                currentDevice.setOn(newState);
-                updateSwitchUI(btnSwitchToggle, txtSwitchState, newState);
-
-                if (bluetoothManager.isConnected()) {
-                    String command = newState ? currentDevice.getCommandOn() : currentDevice.getCommandOff();
-                    sendCommandToDevice(command, "SWITCH" + switchIndex);
-                }
-
-                // Save state
-                saveSwitchesToPreferences();
-            });
-
-            // Long click for settings
-            switchView.setOnLongClickListener(v -> {
-                showSwitchSettingsDialog(currentDevice);
-                return true;
-            });
-
-            switchesContainer.addView(switchView);
+            switchList.add(device);
         }
+
+        // Update grid adapter
+        gridAdapter.updateAllSwitches(switchList);
+
+        // Save to preferences
+        saveSwitchesToPreferences();
+
+        // Force refresh the grid
+        switchesGrid.invalidateViews();
+        switchesGrid.requestLayout();
+
+        Toast.makeText(this, "4 default switches created", Toast.LENGTH_SHORT).show();
     }
 
     /* =====================
@@ -344,7 +391,7 @@ public class MainActivity extends AppCompatActivity
                     for (DeviceModel switchDevice : switchList) {
                         if (device.equals("SWITCH" + switchDevice.getIndex())) {
                             switchDevice.setOn(isOn);
-                            updateSwitchStateInUI(switchDevice.getIndex(), isOn);
+                            gridAdapter.updateAllSwitches(switchList);
                             break;
                         }
                     }
@@ -355,29 +402,6 @@ public class MainActivity extends AppCompatActivity
         else if (message.startsWith("ERROR:")) {
             logManager.addLog(message, LogManager.LogType.ERROR,
                     bluetoothManager.getConnectedDeviceName());
-        }
-    }
-
-    private void updateSwitchStateInUI(int switchIndex, boolean isOn) {
-        for (int i = 0; i < switchesContainer.getChildCount(); i++) {
-            View switchView = switchesContainer.getChildAt(i);
-            TextView txtSwitchName = switchView.findViewById(R.id.txtSwitchName);
-
-            if (txtSwitchName.getText().toString().equals("Switch " + switchIndex)) {
-                RelativeLayout btnSwitchToggle = switchView.findViewById(R.id.btnSwitchToggle);
-                TextView txtSwitchState = switchView.findViewById(R.id.txtSwitchState);
-                updateSwitchUI(btnSwitchToggle, txtSwitchState, isOn);
-
-                // Update in list
-                for (DeviceModel device : switchList) {
-                    if (device.getIndex() == switchIndex) {
-                        device.setOn(isOn);
-                        break;
-                    }
-                }
-
-                break;
-            }
         }
     }
 

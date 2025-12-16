@@ -39,6 +39,13 @@ public class AddSwitchesDialog extends Dialog {
         btnCreate = findViewById(R.id.btnCreate);
     }
 
+    // Add this method to set current count
+    public void setCurrentCount(int count) {
+        if (etSwitchCount != null) {
+            etSwitchCount.setText(String.valueOf(count));
+        }
+    }
+
     private void setupListeners() {
         btnCancel.setOnClickListener(v -> dismiss());
 

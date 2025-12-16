@@ -8,6 +8,7 @@ import android.widget.BaseAdapter;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class SwitchGridAdapter extends BaseAdapter {
@@ -24,7 +25,7 @@ public class SwitchGridAdapter extends BaseAdapter {
 
     public SwitchGridAdapter(Context context, List<DeviceModel> switchList, OnSwitchClickListener listener) {
         this.context = context;
-        this.switchList = switchList;
+        this.switchList = new ArrayList<>(switchList); // Create new list
         this.listener = listener;
     }
 
@@ -65,15 +66,17 @@ public class SwitchGridAdapter extends BaseAdapter {
 
         // Set click listeners
         final int pos = position;
+        final DeviceModel currentDevice = device;
+
         holder.btnSwitchToggle.setOnClickListener(v -> {
             if (listener != null) {
-                listener.onSwitchClick(pos, device);
+                listener.onSwitchClick(pos, currentDevice);
             }
         });
 
         convertView.setOnLongClickListener(v -> {
             if (listener != null) {
-                listener.onSwitchLongClick(pos, device);
+                listener.onSwitchLongClick(pos, currentDevice);
                 return true;
             }
             return false;
@@ -93,9 +96,11 @@ public class SwitchGridAdapter extends BaseAdapter {
     }
 
     public void updateSwitchState(int position, boolean isOn) {
-        DeviceModel device = switchList.get(position);
-        device.setOn(isOn);
-        notifyDataSetChanged();
+        if (position >= 0 && position < switchList.size()) {
+            DeviceModel device = switchList.get(position);
+            device.setOn(isOn);
+            notifyDataSetChanged();
+        }
     }
 
     public void updateAllSwitches(List<DeviceModel> newList) {
