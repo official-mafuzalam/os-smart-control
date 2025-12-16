@@ -4,10 +4,13 @@ import android.Manifest;
 import android.bluetooth.BluetoothDevice;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -16,20 +19,23 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
-import com.google.android.material.materialswitch.MaterialSwitch;
-
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity
         implements BluetoothManager.BluetoothListener,
-        DeviceDialogManager.DeviceDialogListener {
+        DeviceDialogManager.DeviceDialogListener,
+        DeviceSettingsDialog.OnDeviceSettingsListener,
+        AddSwitchesDialog.OnSwitchesCreatedListener {
 
     // UI Components
     private ImageView btnBluetooth;
     private TextView txtStatus;
-    private MaterialSwitch switchFan, switchLight1, switchLight2, switchLight3;
     private LinearLayout connectionStatus;
+    private LinearLayout switchesContainer;
+    private Button btnAddSwitches;
 
     // Logs UI
     private LinearLayout logsContainer;
@@ -41,6 +47,14 @@ public class MainActivity extends AppCompatActivity
     private BluetoothManager bluetoothManager;
     private LogManager logManager;
     private DeviceDialogManager dialogManager;
+    private PreferencesManager preferencesManager;
+
+    // Device data
+    private Map<String, DeviceModel> devices;
+    private List<DeviceModel> switchList;
+
+    // Current device being edited
+    private String currentEditingDeviceId;
 
     // Permissions
     private static final int REQUEST_BLUETOOTH_PERMISSIONS = 100;
@@ -57,8 +71,13 @@ public class MainActivity extends AppCompatActivity
         logManager = new LogManager(this, logsContainer, txtEmptyLogs, txtLogStats);
         dialogManager = new DeviceDialogManager(this, this);
 
-        setupSwitchListeners();
+        // Initialize preferences manager
+        preferencesManager = new PreferencesManager(this);
+        devices = preferencesManager.loadDevices();
+        switchList = new ArrayList<>();
+
         setupButtonListeners();
+        loadSwitchesFromPreferences();
 
         // Check Bluetooth permissions
         checkBluetoothPermissions();
@@ -69,12 +88,8 @@ public class MainActivity extends AppCompatActivity
         btnBluetooth = findViewById(R.id.btnBluetooth);
         txtStatus = findViewById(R.id.txtStatus);
         connectionStatus = findViewById(R.id.connectionStatus);
-
-        // Switches
-        switchFan = findViewById(R.id.switchFan);
-        switchLight1 = findViewById(R.id.switchLight1);
-        switchLight2 = findViewById(R.id.switchLight2);
-        switchLight3 = findViewById(R.id.switchLight3);
+        switchesContainer = findViewById(R.id.switchesContainer);
+        btnAddSwitches = findViewById(R.id.btnAddSwitches);
 
         // Logs
         logsContainer = findViewById(R.id.logsContainer);
@@ -82,93 +97,230 @@ public class MainActivity extends AppCompatActivity
         txtLogStats = findViewById(R.id.txtLogStats);
         btnClearLogs = findViewById(R.id.btnClearLogs);
 
-        // Initially hide status and disable switches
+        // Initially hide status
         connectionStatus.setVisibility(View.GONE);
-        enableSwitches(false);
     }
 
     private void setupButtonListeners() {
         btnBluetooth.setOnClickListener(v -> showBluetoothDialog());
         btnClearLogs.setOnClickListener(v -> logManager.clearLogs());
+        btnAddSwitches.setOnClickListener(v -> showAddSwitchesDialog());
     }
 
-    private void setupSwitchListeners() {
-        switchFan.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (bluetoothManager.isConnected()) {
-                // Convert to Arduino format: FAN:ON -> FAN_ON
-                String command = isChecked ? "FAN:ON" : "FAN:OFF";
-                sendCommand(command);
-            } else {
-                Toast.makeText(this, "Please connect to a device first", Toast.LENGTH_SHORT).show();
-                switchFan.setChecked(false);
-            }
-        });
-
-        switchLight1.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (bluetoothManager.isConnected()) {
-                // Convert to Arduino format: LIGHT1:ON -> LIGHT1_ON
-                String command = isChecked ? "LIGHT1:ON" : "LIGHT1:OFF";
-                sendCommand(command);
-            } else {
-                Toast.makeText(this, "Please connect to a device first", Toast.LENGTH_SHORT).show();
-                switchLight1.setChecked(false);
-            }
-        });
-
-        switchLight2.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (bluetoothManager.isConnected()) {
-                // Convert to Arduino format: LIGHT2:ON -> LIGHT2_ON
-                String command = isChecked ? "LIGHT2:ON" : "LIGHT2:OFF";
-                sendCommand(command);
-            } else {
-                Toast.makeText(this, "Please connect to a device first", Toast.LENGTH_SHORT).show();
-                switchLight2.setChecked(false);
-            }
-        });
-
-        switchLight3.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (bluetoothManager.isConnected()) {
-                // Convert to Arduino format: LIGHT3:ON -> LIGHT3_ON
-                String command = isChecked ? "LIGHT3:ON" : "LIGHT3:OFF";
-                sendCommand(command);
-            } else {
-                Toast.makeText(this, "Please connect to a device first", Toast.LENGTH_SHORT).show();
-                switchLight3.setChecked(false);
-            }
-        });
+    private void showAddSwitchesDialog() {
+        AddSwitchesDialog dialog = new AddSwitchesDialog(this, this);
+        dialog.show();
     }
 
-    /* =====================
-       CONVERT TO ARDUINO FORMAT
-       ===================== */
-    private String convertToArduinoFormat(String command) {
-        if (command.contains(":")) {
-            String[] parts = command.split(":");
-            if (parts.length == 2) {
-                String device = parts[0].toUpperCase();
-                String state = parts[1].toUpperCase();
+    @Override
+    public void onSwitchesCreated(int count) {
+        createSwitches(count);
+    }
 
-                // Convert DEVICE:STATE to DEVICE_STATE format
-                return device + "_" + state;
+    private void createSwitches(int count) {
+        // Clear existing switches
+        switchesContainer.removeAllViews();
+        switchList.clear();
+
+        // Create new switches
+        for (int i = 1; i <= count; i++) {
+            DeviceModel device = new DeviceModel(
+                    i,
+                    "Switch " + i,
+                    "SWITCH" + i + "_ON",
+                    "SWITCH" + i + "_OFF"
+            );
+
+            switchList.add(device);
+
+            // Create switch view
+            View switchView = LayoutInflater.from(this).inflate(R.layout.item_switch, switchesContainer, false);
+
+            TextView txtSwitchName = switchView.findViewById(R.id.txtSwitchName);
+            RelativeLayout btnSwitchToggle = switchView.findViewById(R.id.btnSwitchToggle);
+            TextView txtSwitchState = switchView.findViewById(R.id.txtSwitchState);
+
+            txtSwitchName.setText(device.getName());
+            updateSwitchUI(btnSwitchToggle, txtSwitchState, device.isOn());
+
+            final int switchIndex = i;
+            final DeviceModel currentDevice = device;
+
+            // Toggle on click
+            btnSwitchToggle.setOnClickListener(v -> {
+                boolean newState = !currentDevice.isOn();
+                currentDevice.setOn(newState);
+                updateSwitchUI(btnSwitchToggle, txtSwitchState, newState);
+
+                if (bluetoothManager.isConnected()) {
+                    String command = newState ? currentDevice.getCommandOn() : currentDevice.getCommandOff();
+                    sendCommandToDevice(command, "SWITCH" + switchIndex);
+                }
+            });
+
+            // Long click for settings
+            switchView.setOnLongClickListener(v -> {
+                showSwitchSettingsDialog(currentDevice);
+                return true;
+            });
+
+            switchesContainer.addView(switchView);
+        }
+
+        // Save to preferences
+        saveSwitchesToPreferences();
+
+        Toast.makeText(this, "Created " + count + " switches", Toast.LENGTH_SHORT).show();
+    }
+
+    private void updateSwitchUI(RelativeLayout switchButton, TextView stateText, boolean isOn) {
+        if (isOn) {
+            switchButton.setBackgroundResource(R.drawable.bg_switch_on);
+            stateText.setText("ON");
+        } else {
+            switchButton.setBackgroundResource(R.drawable.bg_switch_off);
+            stateText.setText("OFF");
+        }
+    }
+
+    private void showSwitchSettingsDialog(DeviceModel device) {
+        currentEditingDeviceId = device.getId();
+
+        DeviceSettingsDialog dialog = new DeviceSettingsDialog(this, device, this);
+        dialog.show();
+    }
+
+    @Override
+    public void onDeviceSettingsSaved(DeviceModel updatedDevice) {
+        if (currentEditingDeviceId != null) {
+            // Update in list
+            for (int i = 0; i < switchList.size(); i++) {
+                if (switchList.get(i).getId().equals(currentEditingDeviceId)) {
+                    switchList.set(i, updatedDevice);
+                    break;
+                }
+            }
+
+            // Update UI
+            updateSwitchInUI(updatedDevice);
+
+            // Save to preferences
+            saveSwitchesToPreferences();
+
+            Toast.makeText(this, "Switch settings saved", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void updateSwitchInUI(DeviceModel device) {
+        for (int i = 0; i < switchesContainer.getChildCount(); i++) {
+            View switchView = switchesContainer.getChildAt(i);
+            TextView txtSwitchName = switchView.findViewById(R.id.txtSwitchName);
+            RelativeLayout btnSwitchToggle = switchView.findViewById(R.id.btnSwitchToggle);
+            TextView txtSwitchState = switchView.findViewById(R.id.txtSwitchState);
+
+            if (txtSwitchName.getText().toString().equals(device.getName())) {
+                txtSwitchName.setText(device.getName());
+                updateSwitchUI(btnSwitchToggle, txtSwitchState, device.isOn());
+                break;
             }
         }
-        return command; // Return as-is if no colon found
+    }
+
+    private void saveSwitchesToPreferences() {
+        Map<String, DeviceModel> allDevices = new HashMap<>(devices);
+
+        // Clear existing switches
+        for (String key : allDevices.keySet().toArray(new String[0])) {
+            if (key.startsWith("SWITCH_")) {
+                allDevices.remove(key);
+            }
+        }
+
+        // Add current switches
+        for (DeviceModel device : switchList) {
+            allDevices.put(device.getId(), device);
+        }
+
+        preferencesManager.saveDevices(allDevices);
+        devices = allDevices;
+    }
+
+    private void loadSwitchesFromPreferences() {
+        // Clear existing
+        switchList.clear();
+
+        // Find all switches
+        for (Map.Entry<String, DeviceModel> entry : devices.entrySet()) {
+            if (entry.getKey().startsWith("SWITCH_")) {
+                switchList.add(entry.getValue());
+            }
+        }
+
+        // Sort by index
+        switchList.sort((d1, d2) -> Integer.compare(d1.getIndex(), d2.getIndex()));
+
+        // If no switches found, create 4 by default
+        if (switchList.isEmpty()) {
+            createSwitches(4);
+        } else {
+            // Recreate UI from loaded switches
+            recreateSwitchesUI();
+        }
+    }
+
+    private void recreateSwitchesUI() {
+        switchesContainer.removeAllViews();
+
+        for (DeviceModel device : switchList) {
+            View switchView = LayoutInflater.from(this).inflate(R.layout.item_switch, switchesContainer, false);
+
+            TextView txtSwitchName = switchView.findViewById(R.id.txtSwitchName);
+            RelativeLayout btnSwitchToggle = switchView.findViewById(R.id.btnSwitchToggle);
+            TextView txtSwitchState = switchView.findViewById(R.id.txtSwitchState);
+
+            txtSwitchName.setText(device.getName());
+            updateSwitchUI(btnSwitchToggle, txtSwitchState, device.isOn());
+
+            final DeviceModel currentDevice = device;
+            final int switchIndex = device.getIndex();
+
+            // Toggle on click
+            btnSwitchToggle.setOnClickListener(v -> {
+                boolean newState = !currentDevice.isOn();
+                currentDevice.setOn(newState);
+                updateSwitchUI(btnSwitchToggle, txtSwitchState, newState);
+
+                if (bluetoothManager.isConnected()) {
+                    String command = newState ? currentDevice.getCommandOn() : currentDevice.getCommandOff();
+                    sendCommandToDevice(command, "SWITCH" + switchIndex);
+                }
+
+                // Save state
+                saveSwitchesToPreferences();
+            });
+
+            // Long click for settings
+            switchView.setOnLongClickListener(v -> {
+                showSwitchSettingsDialog(currentDevice);
+                return true;
+            });
+
+            switchesContainer.addView(switchView);
+        }
     }
 
     /* =====================
        SEND COMMAND TO DEVICE
        ===================== */
-    private void sendCommand(String command) {
+    private void sendCommandToDevice(String command, String deviceId) {
         if (bluetoothManager.isConnected()) {
-            // Convert command to Arduino format
-            String arduinoCommand = convertToArduinoFormat(command);
+            bluetoothManager.sendCommand(command);
 
-            bluetoothManager.sendCommand(arduinoCommand);
-
-            // Log the actual command sent to Arduino
-            logManager.addLog("Command sent: " + arduinoCommand, LogManager.LogType.SENT,
+            // Log the command
+            logManager.addLog("Command sent: " + command, LogManager.LogType.SENT,
                     bluetoothManager.getConnectedDeviceName());
-            Toast.makeText(this, "Command sent: " + arduinoCommand, Toast.LENGTH_SHORT).show();
+
+            Toast.makeText(this, "Command sent: " + command, Toast.LENGTH_SHORT).show();
         } else {
             Toast.makeText(this, "Please connect to a device first", Toast.LENGTH_SHORT).show();
         }
@@ -178,8 +330,7 @@ public class MainActivity extends AppCompatActivity
        HANDLE DEVICE MESSAGES
        ===================== */
     private void handleDeviceMessage(String message) {
-        // Parse and handle messages from device
-        // Arduino sends back LIGHT1:ON or LIGHT1:OFF format
+        // Handle messages from device
         if (message.contains(":")) {
             String[] parts = message.split(":");
             if (parts.length == 2) {
@@ -189,82 +340,44 @@ public class MainActivity extends AppCompatActivity
                 boolean isOn = state.equals("ON");
 
                 runOnUiThread(() -> {
-                    switch (device) {
-                        case "FAN":
-                            switchFan.setChecked(isOn);
+                    // Check if it's one of our switches
+                    for (DeviceModel switchDevice : switchList) {
+                        if (device.equals("SWITCH" + switchDevice.getIndex())) {
+                            switchDevice.setOn(isOn);
+                            updateSwitchStateInUI(switchDevice.getIndex(), isOn);
                             break;
-                        case "LIGHT1":
-                            switchLight1.setChecked(isOn);
-                            break;
-                        case "LIGHT2":
-                            switchLight2.setChecked(isOn);
-                            break;
-                        case "LIGHT3":
-                            switchLight3.setChecked(isOn);
-                            break;
-                        case "STATUS":
-                            // Handle status message
-                            // Format: STATUS:L1=1:L2=0:FAN=1
-                            parseStatusMessage(message);
-                            break;
+                        }
                     }
                 });
             }
         }
-        // Also handle error messages from Arduino
+        // Handle error messages
         else if (message.startsWith("ERROR:")) {
             logManager.addLog(message, LogManager.LogType.ERROR,
                     bluetoothManager.getConnectedDeviceName());
         }
-        // Handle ALL:ON or ALL:OFF responses
-        else if (message.equals("ALL:ON") || message.equals("ALL:OFF")) {
-            boolean isOn = message.equals("ALL:ON");
-            runOnUiThread(() -> {
-                switchFan.setChecked(isOn);
-                switchLight1.setChecked(isOn);
-                switchLight2.setChecked(isOn);
-                switchLight3.setChecked(isOn);
-            });
-        }
     }
 
-    /* =====================
-       PARSE STATUS MESSAGE FROM ARDUINO
-       ===================== */
-    private void parseStatusMessage(String statusMessage) {
-        // Format: STATUS:L1=1:L2=0:FAN=1
-        try {
-            String[] parts = statusMessage.split(":");
-            for (String part : parts) {
-                if (part.contains("=")) {
-                    String[] keyValue = part.split("=");
-                    if (keyValue.length == 2) {
-                        String key = keyValue[0];
-                        int value = Integer.parseInt(keyValue[1]);
-                        boolean isOn = value == 1;
+    private void updateSwitchStateInUI(int switchIndex, boolean isOn) {
+        for (int i = 0; i < switchesContainer.getChildCount(); i++) {
+            View switchView = switchesContainer.getChildAt(i);
+            TextView txtSwitchName = switchView.findViewById(R.id.txtSwitchName);
 
-                        runOnUiThread(() -> {
-                            switch (key) {
-                                case "L1":
-                                    switchLight1.setChecked(isOn);
-                                    break;
-                                case "L2":
-                                    switchLight2.setChecked(isOn);
-                                    break;
-                                case "FAN":
-                                    switchFan.setChecked(isOn);
-                                    break;
-                                case "L3":
-                                    switchLight3.setChecked(isOn);
-                                    break;
-                            }
-                        });
+            if (txtSwitchName.getText().toString().equals("Switch " + switchIndex)) {
+                RelativeLayout btnSwitchToggle = switchView.findViewById(R.id.btnSwitchToggle);
+                TextView txtSwitchState = switchView.findViewById(R.id.txtSwitchState);
+                updateSwitchUI(btnSwitchToggle, txtSwitchState, isOn);
+
+                // Update in list
+                for (DeviceModel device : switchList) {
+                    if (device.getIndex() == switchIndex) {
+                        device.setOn(isOn);
+                        break;
                     }
                 }
+
+                break;
             }
-        } catch (Exception e) {
-            logManager.addLog("Error parsing status: " + e.getMessage(),
-                    LogManager.LogType.ERROR, "");
         }
     }
 
@@ -339,22 +452,16 @@ public class MainActivity extends AppCompatActivity
         txtStatus.setText("Connected to: " + deviceName);
         txtStatus.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_dark));
 
-        // Enable switches
-        enableSwitches(true);
-
         // Get connected device info
         BluetoothDevice device = bluetoothManager.getConnectedDevice();
         if (device != null) {
             String connectedName = device.getName();
             logManager.addLog("Connected to: " + connectedName, LogManager.LogType.INFO, "");
             Toast.makeText(this, "Connected to: " + connectedName, Toast.LENGTH_SHORT).show();
-
-            // Send STATUS command to sync switch states
-            sendCommand("STATUS");
         }
 
         // Close dialog after delay
-        new android.os.Handler().postDelayed(() -> {
+        new Handler().postDelayed(() -> {
             if (dialogManager.isDialogShowing()) {
                 dialogManager.dismissDialog();
             }
@@ -364,13 +471,11 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onDisconnected() {
         connectionStatus.setVisibility(View.GONE);
-        enableSwitches(false);
     }
 
     @Override
     public void onConnectionError(String error) {
         connectionStatus.setVisibility(View.GONE);
-        enableSwitches(false);
 
         if (dialogManager.isDialogShowing()) {
             dialogManager.updateScanStatus("Connection failed: " + error, android.R.color.holo_red_dark);
@@ -385,23 +490,6 @@ public class MainActivity extends AppCompatActivity
         handleDeviceMessage(message);
         logManager.addLog("Received: " + message, LogManager.LogType.RECEIVED,
                 bluetoothManager.getConnectedDeviceName());
-        // Toast message is now optional - can comment out if too many toasts
-        // Toast.makeText(this, "Received: " + message, Toast.LENGTH_SHORT).show();
-    }
-
-    private void enableSwitches(boolean enable) {
-        switchFan.setEnabled(enable);
-        switchLight1.setEnabled(enable);
-        switchLight2.setEnabled(enable);
-        switchLight3.setEnabled(enable);
-
-        if (!enable) {
-            // Reset switches when disconnected
-            switchFan.setChecked(false);
-            switchLight1.setChecked(false);
-            switchLight2.setChecked(false);
-            switchLight3.setChecked(false);
-        }
     }
 
     /* =====================
