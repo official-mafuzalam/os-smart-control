@@ -6,29 +6,26 @@ import org.json.JSONObject;
 public class DeviceModel {
     private String id;
     private String name;
-    private String commandOn;
-    private String commandOff;
+    private String toggleCommand; // Changed from commandOn/commandOff
     private boolean isOn;
-    private int index; // For dynamic switches
+    private int index;
 
     // Default constructor
     public DeviceModel() {
     }
 
-    public DeviceModel(String id, String name, String commandOn, String commandOff) {
+    public DeviceModel(String id, String name, String toggleCommand) {
         this.id = id;
         this.name = name;
-        this.commandOn = commandOn;
-        this.commandOff = commandOff;
+        this.toggleCommand = toggleCommand;
         this.isOn = false;
         this.index = 0;
     }
 
-    public DeviceModel(int index, String name, String commandOn, String commandOff) {
+    public DeviceModel(int index, String name, String toggleCommand) {
         this.id = "SWITCH_" + index;
         this.name = name;
-        this.commandOn = commandOn;
-        this.commandOff = commandOff;
+        this.toggleCommand = toggleCommand;
         this.isOn = false;
         this.index = index;
     }
@@ -50,20 +47,30 @@ public class DeviceModel {
         this.name = name;
     }
 
-    public String getCommandOn() {
-        return commandOn;
+    // Get toggle command
+    public String getToggleCommand() {
+        return toggleCommand;
     }
 
-    public void setCommandOn(String commandOn) {
-        this.commandOn = commandOn;
+    public void setToggleCommand(String toggleCommand) {
+        this.toggleCommand = toggleCommand;
+    }
+
+    // For backward compatibility
+    public String getCommandOn() {
+        return toggleCommand;
     }
 
     public String getCommandOff() {
-        return commandOff;
+        return toggleCommand;
+    }
+
+    public void setCommandOn(String commandOn) {
+        this.toggleCommand = commandOn;
     }
 
     public void setCommandOff(String commandOff) {
-        this.commandOff = commandOff;
+        this.toggleCommand = commandOff;
     }
 
     public boolean isOn() {
@@ -83,7 +90,7 @@ public class DeviceModel {
     }
 
     public String getCurrentCommand() {
-        return isOn ? commandOn : commandOff;
+        return toggleCommand;
     }
 
     // Convert to JSON string
@@ -92,8 +99,7 @@ public class DeviceModel {
             JSONObject json = new JSONObject();
             json.put("id", id);
             json.put("name", name);
-            json.put("commandOn", commandOn);
-            json.put("commandOff", commandOff);
+            json.put("toggleCommand", toggleCommand);
             json.put("isOn", isOn);
             json.put("index", index);
             return json.toString();
@@ -110,8 +116,15 @@ public class DeviceModel {
             DeviceModel device = new DeviceModel();
             device.setId(json.optString("id", ""));
             device.setName(json.optString("name", ""));
-            device.setCommandOn(json.optString("commandOn", ""));
-            device.setCommandOff(json.optString("commandOff", ""));
+
+            // Handle both old format (commandOn/commandOff) and new format (toggleCommand)
+            if (json.has("toggleCommand")) {
+                device.setToggleCommand(json.optString("toggleCommand", ""));
+            } else {
+                // For backward compatibility
+                device.setToggleCommand(json.optString("commandOn", ""));
+            }
+
             device.setOn(json.optBoolean("isOn", false));
             device.setIndex(json.optInt("index", 0));
             return device;

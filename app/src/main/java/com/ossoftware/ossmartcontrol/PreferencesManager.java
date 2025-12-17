@@ -75,16 +75,43 @@ public class PreferencesManager {
     private void createDefaultSwitches() {
         Map<String, DeviceModel> devices = new HashMap<>();
 
-        // Create 4 default switches
+        // Create 4 default switches with toggle commands
         for (int i = 1; i <= 4; i++) {
             DeviceModel device = new DeviceModel(
                     i,
                     "Switch " + i,
-                    "SWITCH" + i + "_ON",
-                    "SWITCH" + i + "_OFF"
+                    "LIGHT" + i + "_TOGGLE"
             );
             devices.put(device.getId(), device);
         }
+
+//        DeviceModel deviceModel = new DeviceModel(
+//                5,
+//                "HELP SWITCH",
+//                "HELP"
+//        );
+//        devices.put(deviceModel.getId(), deviceModel);
+//
+//        DeviceModel deviceModel2 = new DeviceModel(
+//                6,
+//                "STATUS SWITCH",
+//                "STATUS"
+//        );
+//        devices.put(deviceModel2.getId(), deviceModel2);
+//
+//        DeviceModel deviceModel3 = new DeviceModel(
+//                7,
+//                "ALL_ON SWITCH",
+//                "ALL_ON"
+//        );
+//        devices.put(deviceModel3.getId(), deviceModel3);
+//
+//        DeviceModel deviceModel4 = new DeviceModel(
+//                8,
+//                "ALL_OFF SWITCH",
+//                "ALL_OFF"
+//        );
+//        devices.put(deviceModel4.getId(), deviceModel4);
 
         saveDevices(devices);
     }

@@ -71,7 +71,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:horizontalSpacing="@dimen/grid_spacing"
-                android:numColumns="4"
+                android:numColumns="2"
                 android:padding="@dimen/card_padding"
                 android:scrollbars="vertical"
                 android:stretchMode="columnWidth"

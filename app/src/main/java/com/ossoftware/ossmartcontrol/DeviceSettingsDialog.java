@@ -15,7 +15,7 @@ public class DeviceSettingsDialog extends Dialog {
 
     private DeviceModel device;
     private OnDeviceSettingsListener listener;
-    private TextInputEditText etDeviceName, etCommandOn, etCommandOff;
+    private TextInputEditText etDeviceName, etToggleCommand;
     private MaterialSwitch switchDeviceState;
 
     public interface OnDeviceSettingsListener {
@@ -40,10 +40,19 @@ public class DeviceSettingsDialog extends Dialog {
 
     private void initializeViews() {
         etDeviceName = findViewById(R.id.etDeviceName);
-        etCommandOn = findViewById(R.id.etCommandOn);
-        etCommandOff = findViewById(R.id.etCommandOff);
+        etToggleCommand = findViewById(R.id.etToggleCommand);
         switchDeviceState = findViewById(R.id.switchDeviceState);
+    }
 
+    private void loadDeviceData() {
+        if (device != null) {
+            etDeviceName.setText(device.getName());
+            etToggleCommand.setText(device.getToggleCommand());
+            switchDeviceState.setChecked(device.isOn());
+        }
+    }
+
+    private void setupListeners() {
         Button btnCancel = findViewById(R.id.btnCancel);
         Button btnSave = findViewById(R.id.btnSave);
 
@@ -51,39 +60,23 @@ public class DeviceSettingsDialog extends Dialog {
         btnSave.setOnClickListener(v -> saveDeviceSettings());
     }
 
-    private void loadDeviceData() {
-        if (device != null) {
-            etDeviceName.setText(device.getName());
-            etCommandOn.setText(device.getCommandOn());
-            etCommandOff.setText(device.getCommandOff());
-            switchDeviceState.setChecked(device.isOn());
-        }
-    }
-
     private void saveDeviceSettings() {
         String name = etDeviceName.getText().toString().trim();
-        String commandOn = etCommandOn.getText().toString().trim();
-        String commandOff = etCommandOff.getText().toString().trim();
+        String toggleCommand = etToggleCommand.getText().toString().trim();
 
         if (name.isEmpty()) {
             Toast.makeText(getContext(), "Please enter device name", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        if (commandOn.isEmpty()) {
-            Toast.makeText(getContext(), "Please enter ON command", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        if (commandOff.isEmpty()) {
-            Toast.makeText(getContext(), "Please enter OFF command", Toast.LENGTH_SHORT).show();
+        if (toggleCommand.isEmpty()) {
+            Toast.makeText(getContext(), "Please enter toggle command", Toast.LENGTH_SHORT).show();
             return;
         }
 
         // Update device
         device.setName(name);
-        device.setCommandOn(commandOn);
-        device.setCommandOff(commandOff);
+        device.setToggleCommand(toggleCommand);
         device.setOn(switchDeviceState.isChecked());
 
         if (listener != null) {
@@ -91,9 +84,5 @@ public class DeviceSettingsDialog extends Dialog {
         }
 
         dismiss();
-    }
-
-    private void setupListeners() {
-        // Optional: Add any additional listeners
     }
 }

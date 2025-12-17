@@ -74,7 +74,6 @@ public class MainActivity extends AppCompatActivity
         Window window = getWindow();
         window.setStatusBarColor(ContextCompat.getColor(this, R.color.toolbar_blue));
 
-
         initializeViews();
 
         // Initialize managers
@@ -152,7 +151,7 @@ public class MainActivity extends AppCompatActivity
 
     private void updateSwitchesCount(int newCount) {
         if (newCount == switchList.size()) {
-            Toast.makeText(this, "Number of switches is already " + newCount, Toast.LENGTH_SHORT).show();
+            showSafeToast("Number of switches is already " + newCount);
             return;
         }
 
@@ -174,7 +173,7 @@ public class MainActivity extends AppCompatActivity
         switchesGrid.invalidateViews();
         switchesGrid.requestLayout();
 
-        Toast.makeText(this, "Updated to " + newCount + " switches", Toast.LENGTH_SHORT).show();
+        showSafeToast("Updated to " + newCount + " switches");
     }
 
     private void addNewSwitches(int newCount) {
@@ -184,8 +183,7 @@ public class MainActivity extends AppCompatActivity
             DeviceModel device = new DeviceModel(
                     i,
                     "Switch " + i,
-                    "SWITCH" + i + "_ON",
-                    "SWITCH" + i + "_OFF"
+                    "LIGHT" + i + "_TOGGLE"  // Only 3 parameters now
             );
 
             switchList.add(device);
@@ -207,51 +205,29 @@ public class MainActivity extends AppCompatActivity
         }
     }
 
-    private void createSwitches(int count) {
-        // Clear existing switches
-        switchList.clear();
-
-        // Create new switches
-        for (int i = 1; i <= count; i++) {
-            DeviceModel device = new DeviceModel(
-                    i,
-                    "Switch " + i,
-                    "SWITCH" + i + "_ON",
-                    "SWITCH" + i + "_OFF"
-            );
-
-            switchList.add(device);
-        }
-
-        // Update grid adapter
-        gridAdapter.updateAllSwitches(switchList);
-
-        // Save to preferences
-        saveSwitchesToPreferences();
-
-        // Force refresh the grid
-        switchesGrid.invalidateViews();
-        switchesGrid.requestLayout();
-
-        Toast.makeText(this, "Created " + count + " switches", Toast.LENGTH_SHORT).show();
-    }
-
     @Override
     public void onSwitchClick(int position, DeviceModel device) {
-        // Toggle switch state
+        // Toggle switch state locally first
         boolean newState = !device.isOn();
         device.setOn(newState);
 
-        // Update UI
+        // Update UI immediately for better responsiveness
         gridAdapter.updateSwitchState(position, newState);
 
         if (bluetoothManager.isConnected()) {
-            String command = newState ? device.getCommandOn() : device.getCommandOff();
-            sendCommandToDevice(command, "SWITCH" + device.getIndex());
-        }
+            // Send the toggle command
+            String command = device.getToggleCommand();
+            sendCommandToDevice(command);
 
-        // Save state
-        saveSwitchesToPreferences();
+            // Log the command
+            logManager.addLog("Sending: " + command, LogManager.LogType.SENT,
+                    bluetoothManager.getConnectedDeviceName());
+        } else {
+            showSafeToast("Please connect to a device first");
+            // Revert UI change if not connected
+            device.setOn(!newState);
+            gridAdapter.updateSwitchState(position, !newState);
+        }
     }
 
     @Override
@@ -284,7 +260,7 @@ public class MainActivity extends AppCompatActivity
             // Save to preferences
             saveSwitchesToPreferences();
 
-            Toast.makeText(this, "Switch settings saved", Toast.LENGTH_SHORT).show();
+            showSafeToast("Switch settings saved");
         }
     }
 
@@ -336,8 +312,7 @@ public class MainActivity extends AppCompatActivity
             DeviceModel device = new DeviceModel(
                     i,
                     "Switch " + i,
-                    "SWITCH" + i + "_ON",
-                    "SWITCH" + i + "_OFF"
+                    "LIGHT" + i + "_TOGGLE"
             );
 
             switchList.add(device);
@@ -353,23 +328,18 @@ public class MainActivity extends AppCompatActivity
         switchesGrid.invalidateViews();
         switchesGrid.requestLayout();
 
-        Toast.makeText(this, "4 default switches created", Toast.LENGTH_SHORT).show();
+        showSafeToast("4 default switches created");
     }
 
     /* =====================
        SEND COMMAND TO DEVICE
        ===================== */
-    private void sendCommandToDevice(String command, String deviceId) {
+    private void sendCommandToDevice(String command) {
         if (bluetoothManager.isConnected()) {
             bluetoothManager.sendCommand(command);
-
-            // Log the command
-            logManager.addLog("Command sent: " + command, LogManager.LogType.SENT,
-                    bluetoothManager.getConnectedDeviceName());
-
-            Toast.makeText(this, "Command sent: " + command, Toast.LENGTH_SHORT).show();
+            // Don't show toast for every command to reduce spam
         } else {
-            Toast.makeText(this, "Please connect to a device first", Toast.LENGTH_SHORT).show();
+            showSafeToast("Please connect to a device first");
         }
     }
 
@@ -377,31 +347,169 @@ public class MainActivity extends AppCompatActivity
        HANDLE DEVICE MESSAGES
        ===================== */
     private void handleDeviceMessage(String message) {
-        // Handle messages from device
+        message = message.trim();
+
+        // Handle status messages from device (LIGHT1:ON, LIGHT1:OFF)
         if (message.contains(":")) {
             String[] parts = message.split(":");
             if (parts.length == 2) {
-                String device = parts[0];
-                String state = parts[1];
+                String deviceName = parts[0].trim();
+                String state = parts[1].trim();
 
                 boolean isOn = state.equals("ON");
 
                 runOnUiThread(() -> {
-                    // Check if it's one of our switches
-                    for (DeviceModel switchDevice : switchList) {
-                        if (device.equals("SWITCH" + switchDevice.getIndex())) {
-                            switchDevice.setOn(isOn);
-                            gridAdapter.updateAllSwitches(switchList);
-                            break;
-                        }
-                    }
+                    // Update corresponding switch
+                    updateSwitchFromDevice(deviceName, isOn);
+
+                    // Log the state change
+                    logManager.addLog(deviceName + " is now " + state,
+                            LogManager.LogType.RECEIVED,
+                            bluetoothManager.getConnectedDeviceName());
                 });
             }
         }
+        // Handle toggle acknowledgement messages
+        else if (message.contains("toggled") || message.contains("Toggled")) {
+            // Extract device number from message
+            parseToggleAckMessage(message);
+        }
+        // Handle status request response
+        else if (message.contains("Status:") || message.contains("L1=") || message.contains("L2=") || message.contains("L3=")) {
+            parseStatusResponse(message);
+        }
+        // Handle BT/IR received messages
+        else if (message.contains("BT Received:") || message.contains("IR Received:")) {
+            // Just log these messages
+            logManager.addLog(message, LogManager.LogType.INFO,
+                    bluetoothManager.getConnectedDeviceName());
+        }
         // Handle error messages
-        else if (message.startsWith("ERROR:")) {
+        else if (message.startsWith("ERROR:") || message.contains("Unknown")) {
             logManager.addLog(message, LogManager.LogType.ERROR,
                     bluetoothManager.getConnectedDeviceName());
+        }
+        // Handle HELP command
+        else if (message.contains("Bluetooth Commands")) {
+            logManager.addLog("HELP received", LogManager.LogType.INFO,
+                    bluetoothManager.getConnectedDeviceName());
+        }
+        // For any other messages, just log them
+        else if (!message.isEmpty()) {
+            logManager.addLog("Received: " + message, LogManager.LogType.INFO,
+                    bluetoothManager.getConnectedDeviceName());
+        }
+    }
+
+    private void parseToggleAckMessage(String message) {
+        try {
+            // Extract device number from messages like:
+            // "Light 2 toggled"
+            // "IR: Toggled Light 1"
+
+            String lowerMessage = message.toLowerCase();
+            String[] words = lowerMessage.split("\\s+");
+
+            int deviceNumber = -1;
+
+            // Look for patterns like "light 1" or "light 2"
+            for (int i = 0; i < words.length - 1; i++) {
+                if (words[i].equals("light") && i + 1 < words.length) {
+                    try {
+                        deviceNumber = Integer.parseInt(words[i + 1]);
+                        break;
+                    } catch (NumberFormatException e) {
+                        // Try to parse word like "1" from "light1"
+                        String word = words[i + 1];
+                        if (word.matches("light\\d+")) {
+                            deviceNumber = Integer.parseInt(word.replace("light", ""));
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (deviceNumber > 0) {
+                // Don't update UI here - wait for LIGHTX:ON/OFF message
+                // Just log it
+                logManager.addLog("Device acknowledged: " + message,
+                        LogManager.LogType.INFO,
+                        bluetoothManager.getConnectedDeviceName());
+            }
+        } catch (Exception e) {
+            logManager.addLog("Error parsing toggle ack: " + e.getMessage(),
+                    LogManager.LogType.ERROR, "");
+        }
+    }
+
+    private void updateSwitchFromDevice(String deviceName, boolean isOn) {
+        // Extract device number from device name (e.g., LIGHT1 -> 1)
+        if (deviceName.startsWith("LIGHT")) {
+            try {
+                String numberStr = deviceName.substring(5); // Remove "LIGHT"
+                int deviceNumber = Integer.parseInt(numberStr);
+
+                // Find and update the switch
+                for (int i = 0; i < switchList.size(); i++) {
+                    DeviceModel device = switchList.get(i);
+                    if (device.getIndex() == deviceNumber) {
+                        device.setOn(isOn);
+                        gridAdapter.updateSwitchState(i, isOn);
+
+                        // Save state to preferences
+                        saveSwitchesToPreferences();
+                        break;
+                    }
+                }
+
+            } catch (NumberFormatException e) {
+                // Invalid device number
+                logManager.addLog("Invalid device name: " + deviceName,
+                        LogManager.LogType.ERROR, "");
+            }
+        }
+    }
+
+    private void parseStatusResponse(String statusMessage) {
+        // Format: Status: L1=ON  L2=OFF  L3=ON
+        // OR: L1=ON L2=OFF L3=ON
+        try {
+            // Remove "Status:" if present
+            String cleanMessage = statusMessage.replace("Status:", "").trim();
+
+            // Split by spaces
+            String[] parts = cleanMessage.split("\\s+");
+
+            for (String part : parts) {
+                if (part.contains("=")) {
+                    String[] keyValue = part.split("=");
+                    if (keyValue.length == 2) {
+                        String key = keyValue[0].trim();
+                        String value = keyValue[1].trim();
+
+                        boolean isOn = value.equals("ON");
+
+                        // Map L1, L2, L3 to device numbers
+                        int deviceNumber = 0;
+                        if (key.equals("L1")) deviceNumber = 1;
+                        else if (key.equals("L2")) deviceNumber = 2;
+                        else if (key.equals("L3")) deviceNumber = 3;
+
+                        if (deviceNumber > 0) {
+                            updateSwitchFromDevice("LIGHT" + deviceNumber, isOn);
+                        }
+                    }
+                }
+            }
+
+            // Log the status update
+            logManager.addLog("Status updated: " + statusMessage,
+                    LogManager.LogType.INFO,
+                    bluetoothManager.getConnectedDeviceName());
+
+        } catch (Exception e) {
+            logManager.addLog("Error parsing status: " + e.getMessage(),
+                    LogManager.LogType.ERROR, "");
         }
     }
 
@@ -412,7 +520,7 @@ public class MainActivity extends AppCompatActivity
         // Check permissions first
         if (!checkPermissions()) {
             checkBluetoothPermissions();
-            Toast.makeText(this, "Please grant Bluetooth permissions first", Toast.LENGTH_SHORT).show();
+            showSafeToast("Please grant Bluetooth permissions first");
             return;
         }
 
@@ -466,7 +574,7 @@ public class MainActivity extends AppCompatActivity
         dialogManager.stopScanning();
         dialogManager.updateScanStatus("Error: " + error, android.R.color.holo_red_dark);
         logManager.addLog("Scan error: " + error, LogManager.LogType.ERROR, "");
-        Toast.makeText(this, "Scan error: " + error, Toast.LENGTH_LONG).show();
+        showSafeToast("Scan error: " + error);
     }
 
     @Override
@@ -481,7 +589,15 @@ public class MainActivity extends AppCompatActivity
         if (device != null) {
             String connectedName = device.getName();
             logManager.addLog("Connected to: " + connectedName, LogManager.LogType.INFO, "");
-            Toast.makeText(this, "Connected to: " + connectedName, Toast.LENGTH_SHORT).show();
+            showSafeToast("Connected to: " + connectedName);
+
+            // Request initial status from Arduino
+            new Handler().postDelayed(() -> {
+                if (bluetoothManager.isConnected()) {
+                    sendCommandToDevice("STATUS");
+                    logManager.addLog("Requesting initial status", LogManager.LogType.INFO, connectedName);
+                }
+            }, 1000);
         }
 
         // Close dialog after delay
@@ -495,6 +611,16 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onDisconnected() {
         connectionStatus.setVisibility(View.GONE);
+        logManager.addLog("Disconnected from device", LogManager.LogType.INFO, "");
+
+        // Reset all switches to off when disconnected
+        runOnUiThread(() -> {
+            for (int i = 0; i < switchList.size(); i++) {
+                switchList.get(i).setOn(false);
+            }
+            gridAdapter.updateAllSwitches(switchList);
+            showSafeToast("Disconnected. All switches reset to OFF.");
+        });
     }
 
     @Override
@@ -506,14 +632,18 @@ public class MainActivity extends AppCompatActivity
         }
 
         logManager.addLog("Connection failed: " + error, LogManager.LogType.ERROR, "");
-        Toast.makeText(this, "Connection failed: " + error, Toast.LENGTH_LONG).show();
+        showSafeToast("Connection failed: " + error);
     }
 
     @Override
     public void onMessageReceived(String message) {
-        handleDeviceMessage(message);
-        logManager.addLog("Received: " + message, LogManager.LogType.RECEIVED,
-                bluetoothManager.getConnectedDeviceName());
+        // Handle each line separately (Arduino might send multiple lines)
+        String[] lines = message.split("\n");
+        for (String line : lines) {
+            if (!line.trim().isEmpty()) {
+                handleDeviceMessage(line);
+            }
+        }
     }
 
     /* =====================
@@ -565,7 +695,7 @@ public class MainActivity extends AppCompatActivity
             }
 
             if (!allGranted) {
-                Toast.makeText(this, "Bluetooth permissions are required to use this feature", Toast.LENGTH_LONG).show();
+                showSafeToast("Bluetooth permissions are required to use this feature");
             } else {
                 // Permissions granted, show dialog
                 showBluetoothDialog();
@@ -584,6 +714,16 @@ public class MainActivity extends AppCompatActivity
 
         if (dialogManager != null) {
             dialogManager.dismissDialog();
+        }
+    }
+
+    // Safe toast method to prevent SystemUI crashes
+    private void showSafeToast(String message) {
+        try {
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            // If toast fails, log it instead
+            logManager.addLog("Toast failed: " + message, LogManager.LogType.ERROR, "");
         }
     }
 }

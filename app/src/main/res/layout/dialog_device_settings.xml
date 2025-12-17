@@ -21,30 +21,15 @@
 
     </com.google.android.material.textfield.TextInputLayout>
 
-    <!-- Command ON -->
+    <!-- Toggle Command -->
     <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="16dp"
-        android:hint="ON Command">
+        android:hint="Toggle Command">
 
         <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/etCommandOn"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:maxLines="1" />
-
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <!-- Command OFF -->
-    <com.google.android.material.textfield.TextInputLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="24dp"
-        android:hint="OFF Command">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/etCommandOff"
+            android:id="@+id/etToggleCommand"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:maxLines="1" />
