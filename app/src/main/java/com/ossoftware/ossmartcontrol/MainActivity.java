@@ -15,6 +15,8 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -31,13 +33,16 @@ public class MainActivity extends AppCompatActivity
         DeviceDialogManager.DeviceDialogListener,
         DeviceSettingsDialog.OnDeviceSettingsListener,
         AddSwitchesDialog.OnSwitchesCreatedListener,
-        SwitchGridAdapter.OnSwitchClickListener {
+        SwitchGridAdapter.OnSwitchClickListener,
+        VoiceManager.VoiceResultListener {
 
     // UI Components
     private TextView txtStatus;
     private LinearLayout connectionStatus;
     private GridView switchesGrid;
     private Button btnAddSwitches;
+    private Button btnVoiceControl;
+    private TextView txtListeningStatus;
 
     // Logs UI
     private LinearLayout logsContainer;
@@ -47,9 +52,10 @@ public class MainActivity extends AppCompatActivity
 
     // Managers
     private BluetoothManager bluetoothManager;
-    private LogManager logManager;
+    public LogManager logManager; // Changed to public for VoiceManager access
     private DeviceDialogManager dialogManager;
     private PreferencesManager preferencesManager;
+    private VoiceManager voiceManager;
 
     // Device data
     private Map<String, DeviceModel> devices;
@@ -61,6 +67,7 @@ public class MainActivity extends AppCompatActivity
 
     // Permissions
     private static final int REQUEST_BLUETOOTH_PERMISSIONS = 100;
+    private ActivityResultLauncher<String> requestPermissionLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,10 +83,17 @@ public class MainActivity extends AppCompatActivity
 
         initializeViews();
 
+        // Initialize permission launcher
+        initializePermissionLauncher();
+
         // Initialize managers
         bluetoothManager = new BluetoothManager(this, this);
         logManager = new LogManager(this, logsContainer, txtEmptyLogs, txtLogStats);
         dialogManager = new DeviceDialogManager(this, this);
+
+        // Initialize voice manager
+        voiceManager = new VoiceManager(this, txtListeningStatus);
+        voiceManager.setVoiceResultListener(this);
 
         // Initialize preferences manager
         preferencesManager = new PreferencesManager(this);
@@ -97,9 +111,44 @@ public class MainActivity extends AppCompatActivity
         checkBluetoothPermissions();
     }
 
+    private void initializePermissionLauncher() {
+        requestPermissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(),
+                isGranted -> {
+                    if (isGranted) {
+                        // Permission granted, start voice recognition
+                        startVoiceRecognition();
+                    } else {
+                        // Permission denied
+                        showSafeToast("Voice permission denied. Voice control won't work.");
+                    }
+                }
+        );
+    }
+
+    private void startVoiceRecognition() {
+        if (!bluetoothManager.isConnected()) {
+            showSafeToast("Please connect to a Bluetooth device first");
+            return;
+        }
+
+        // Start voice recognition
+        voiceManager.startListening();
+        logManager.addLog("Voice recognition started", LogManager.LogType.INFO, "");
+    }
+
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main_menu, menu);
+
+        // Add voice commands help menu item
+        MenuItem voiceHelp = menu.add("Voice Commands");
+        voiceHelp.setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
+        voiceHelp.setOnMenuItemClickListener(item -> {
+            showVoiceCommandsHelp();
+            return true;
+        });
+
         return true;
     }
 
@@ -122,6 +171,10 @@ public class MainActivity extends AppCompatActivity
         switchesGrid = findViewById(R.id.switchesGrid);
         btnAddSwitches = findViewById(R.id.btnAddSwitches);
 
+        // Voice control views
+        btnVoiceControl = findViewById(R.id.btnVoiceControl);
+        txtListeningStatus = findViewById(R.id.txtListeningStatus);
+
         // Logs
         logsContainer = findViewById(R.id.logsContainer);
         txtEmptyLogs = findViewById(R.id.txtEmptyLogs);
@@ -130,11 +183,189 @@ public class MainActivity extends AppCompatActivity
 
         // Initially hide status
         connectionStatus.setVisibility(View.GONE);
+        txtListeningStatus.setVisibility(View.GONE);
     }
 
     private void setupButtonListeners() {
         btnClearLogs.setOnClickListener(v -> logManager.clearLogs());
         btnAddSwitches.setOnClickListener(v -> showAddSwitchesDialog());
+
+        // Voice control button listener
+        btnVoiceControl.setOnClickListener(v -> toggleVoiceControl());
+    }
+
+    // Voice control methods
+    private void toggleVoiceControl() {
+        if (!bluetoothManager.isConnected()) {
+            showSafeToast("Please connect to a Bluetooth device first");
+            return;
+        }
+
+        // Check and request voice permission
+        if (!checkVoicePermissions()) {
+            requestVoicePermissions();
+            return;
+        }
+
+        startVoiceRecognition();
+    }
+
+    // Handle voice command results
+    @Override
+    public void onVoiceCommandRecognized(String command) {
+        runOnUiThread(() -> {
+            if (command.equals("UNKNOWN_COMMAND")) {
+                showSafeToast("Command not recognized. Try 'Turn on light one' or 'All lights off'");
+                logManager.addLog("Voice: Unknown command", LogManager.LogType.INFO, "");
+                return;
+            }
+
+            logManager.addLog("Voice command: " + command, LogManager.LogType.SENT, "");
+
+            // Process the command
+            processVoiceCommand(command);
+        });
+    }
+
+    @Override
+    public void onVoiceError(String error) {
+        runOnUiThread(() -> {
+            showSafeToast("Voice error: " + error);
+            logManager.addLog("Voice error: " + error, LogManager.LogType.ERROR, "");
+        });
+    }
+
+    private void processVoiceCommand(String command) {
+        if (!bluetoothManager.isConnected()) {
+            showSafeToast("Not connected to Bluetooth device");
+            return;
+        }
+
+        // Handle different command types
+        if (command.startsWith("LIGHT") && command.endsWith("_ON")) {
+            handleLightCommand(command, true);
+        } else if (command.startsWith("LIGHT") && command.endsWith("_OFF")) {
+            handleLightCommand(command, false);
+        } else if (command.startsWith("LIGHT") && command.endsWith("_TOGGLE")) {
+            handleToggleCommand(command);
+        } else if (command.equals("ALL_LIGHTS_ON")) {
+            handleAllLightsCommand(true);
+        } else if (command.equals("ALL_LIGHTS_OFF")) {
+            handleAllLightsCommand(false);
+        } else if (command.equals("STATUS")) {
+            sendCommandToDevice("STATUS");
+            showSafeToast("Requesting status");
+            logManager.addLog("Voice: Request status",
+                    LogManager.LogType.SENT,
+                    bluetoothManager.getConnectedDeviceName());
+        } else if (command.equals("HELP")) {
+            showVoiceCommandsHelp();
+        } else if (command.startsWith("SET_TEMP_")) {
+            String temp = command.replace("SET_TEMP_", "");
+            sendCommandToDevice("SET_TEMP_" + temp);
+            showSafeToast("Setting temperature to " + temp + "°C");
+            logManager.addLog("Voice: Set temperature to " + temp + "°C",
+                    LogManager.LogType.SENT,
+                    bluetoothManager.getConnectedDeviceName());
+        } else {
+            // Send the raw command to Arduino
+            sendCommandToDevice(command);
+            showSafeToast("Sending command: " + command);
+            logManager.addLog("Voice: " + command,
+                    LogManager.LogType.SENT,
+                    bluetoothManager.getConnectedDeviceName());
+        }
+    }
+
+    private void handleLightCommand(String command, boolean turnOn) {
+        String lightNumber = command.replace("LIGHT", "").replace(turnOn ? "_ON" : "_OFF", "");
+        try {
+            int lightIndex = Integer.parseInt(lightNumber) - 1;
+            if (lightIndex >= 0 && lightIndex < switchList.size()) {
+                DeviceModel device = switchList.get(lightIndex);
+                device.setOn(turnOn);
+                gridAdapter.updateSwitchState(lightIndex, turnOn);
+
+                sendCommandToDevice(command);
+                showSafeToast("Turning " + (turnOn ? "on" : "off") + " light " + lightNumber);
+
+                logManager.addLog("Voice: " + command,
+                        LogManager.LogType.SENT,
+                        bluetoothManager.getConnectedDeviceName());
+            }
+        } catch (NumberFormatException e) {
+            showSafeToast("Invalid light number");
+        }
+    }
+
+    private void handleToggleCommand(String command) {
+        String lightNumber = command.replace("LIGHT", "").replace("_TOGGLE", "");
+        try {
+            int lightIndex = Integer.parseInt(lightNumber) - 1;
+            if (lightIndex >= 0 && lightIndex < switchList.size()) {
+                DeviceModel device = switchList.get(lightIndex);
+                boolean newState = !device.isOn();
+                device.setOn(newState);
+                gridAdapter.updateSwitchState(lightIndex, newState);
+
+                sendCommandToDevice("LIGHT" + lightNumber + "_TOGGLE");
+                showSafeToast("Toggling light " + lightNumber);
+
+                logManager.addLog("Voice: Toggle light " + lightNumber,
+                        LogManager.LogType.SENT,
+                        bluetoothManager.getConnectedDeviceName());
+            }
+        } catch (NumberFormatException e) {
+            showSafeToast("Invalid light number");
+        }
+    }
+
+    private void handleAllLightsCommand(boolean turnOn) {
+        for (int i = 0; i < switchList.size(); i++) {
+            switchList.get(i).setOn(turnOn);
+            gridAdapter.updateSwitchState(i, turnOn);
+        }
+
+        // Send command for each light
+        for (int i = 1; i <= switchList.size(); i++) {
+            sendCommandToDevice("LIGHT" + i + (turnOn ? "_ON" : "_OFF"));
+        }
+
+        showSafeToast("Turning " + (turnOn ? "on" : "off") + " all lights");
+        logManager.addLog("Voice: " + (turnOn ? "All lights on" : "All lights off"),
+                LogManager.LogType.SENT,
+                bluetoothManager.getConnectedDeviceName());
+    }
+
+    private void showVoiceCommandsHelp() {
+        StringBuilder helpText = new StringBuilder();
+        helpText.append("Available Voice Commands:\n\n");
+
+        helpText.append("• Turn on/off light [1-8]\n");
+        helpText.append("• Toggle light [1-8]\n");
+        helpText.append("• All lights on/off\n");
+        helpText.append("• Get status\n");
+        helpText.append("• Set temperature [number]\n");
+        helpText.append("• Movie mode\n");
+        helpText.append("• Sleep mode\n");
+        helpText.append("• Good night\n");
+
+        // Create a dialog to show help
+        new androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Voice Commands Help")
+                .setMessage(helpText.toString())
+                .setPositiveButton("OK", null)
+                .show();
+    }
+
+    // Voice permissions methods
+    private boolean checkVoicePermissions() {
+        return ContextCompat.checkSelfPermission(this,
+                Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestVoicePermissions() {
+        requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO);
     }
 
     private void showAddSwitchesDialog() {
@@ -183,7 +414,7 @@ public class MainActivity extends AppCompatActivity
             DeviceModel device = new DeviceModel(
                     i,
                     "Switch " + i,
-                    "LIGHT" + i + "_TOGGLE"  // Only 3 parameters now
+                    "LIGHT" + i + "_TOGGLE"
             );
 
             switchList.add(device);
@@ -337,7 +568,6 @@ public class MainActivity extends AppCompatActivity
     private void sendCommandToDevice(String command) {
         if (bluetoothManager.isConnected()) {
             bluetoothManager.sendCommand(command);
-            // Don't show toast for every command to reduce spam
         } else {
             showSafeToast("Please connect to a device first");
         }
@@ -685,6 +915,7 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
         if (requestCode == REQUEST_BLUETOOTH_PERMISSIONS) {
             boolean allGranted = true;
             for (int result : grantResults) {
@@ -701,6 +932,7 @@ public class MainActivity extends AppCompatActivity
                 showBluetoothDialog();
             }
         }
+        // Remove the REQUEST_VOICE_PERMISSIONS check since we're using ActivityResultLauncher now
     }
 
     @Override
@@ -714,6 +946,11 @@ public class MainActivity extends AppCompatActivity
 
         if (dialogManager != null) {
             dialogManager.dismissDialog();
+        }
+
+        // Clean up voice manager
+        if (voiceManager != null) {
+            voiceManager.destroy();
         }
     }
 

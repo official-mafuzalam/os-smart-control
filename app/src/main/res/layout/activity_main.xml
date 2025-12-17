@@ -50,6 +50,47 @@
         android:orientation="vertical"
         android:padding="@dimen/standard_padding">
 
+        <!-- Voice Control Button -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/CardStyle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="@dimen/standard_margin">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="@dimen/card_padding">
+
+                <Button
+                    android:id="@+id/btnVoiceControl"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:backgroundTint="#4CAF50"
+                    android:drawableStart="@drawable/ic_mic"
+                    android:drawablePadding="8dp"
+                    android:drawableTint="#FFFFFF"
+                    android:text="Voice Control"
+                    android:textColor="#FFFFFF"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/txtListeningStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginStart="16dp"
+                    android:text="🎤 Tap mic to speak"
+                    android:textColor="#666"
+                    android:textSize="14sp"
+                    android:visibility="gone" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
         <!-- Add Switches Button -->
         <Button
             android:id="@+id/btnAddSwitches"
@@ -71,7 +112,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:horizontalSpacing="@dimen/grid_spacing"
-                android:numColumns="2"
+                android:numColumns="3"
                 android:padding="@dimen/card_padding"
                 android:scrollbars="vertical"
                 android:stretchMode="columnWidth"
