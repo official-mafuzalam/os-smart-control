@@ -1,0 +1,9 @@
+<resources>
+    <!-- Standard dimensions -->
+    <dimen name="standard_padding">16dp</dimen>
+    <dimen name="standard_margin">16dp</dimen>
+    <dimen name="grid_spacing">12dp</dimen>
+    <dimen name="card_padding">12dp</dimen>
+    <dimen name="card_corner_radius">16dp</dimen>
+    <dimen name="card_elevation">6dp</dimen>
+</resources>

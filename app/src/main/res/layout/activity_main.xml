@@ -48,36 +48,34 @@
         android:layout_height="0dp"
         android:layout_weight="1"
         android:orientation="vertical"
-        android:padding="16dp">
+        android:padding="@dimen/standard_padding">
 
         <!-- Add Switches Button -->
         <Button
             android:id="@+id/btnAddSwitches"
+            style="@style/Widget.Material3.Button"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:backgroundTint="#4CAF50"
-            android:text="Add/Edit Switches"
-            android:textColor="#FFFFFF" />
+            android:layout_marginBottom="@dimen/standard_margin"
+            android:text="Add/Edit Switches" />
 
         <!-- Dynamic Switches Grid Container -->
         <com.google.android.material.card.MaterialCardView
+            style="@style/CardStyle"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="6dp">
+            android:layout_weight="1">
 
             <GridView
                 android:id="@+id/switchesGrid"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:horizontalSpacing="12dp"
+                android:horizontalSpacing="@dimen/grid_spacing"
                 android:numColumns="4"
-                android:padding="12dp"
+                android:padding="@dimen/card_padding"
                 android:scrollbars="vertical"
                 android:stretchMode="columnWidth"
-                android:verticalSpacing="12dp" />
+                android:verticalSpacing="@dimen/grid_spacing" />
 
         </com.google.android.material.card.MaterialCardView>
 

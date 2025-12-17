@@ -4,5 +4,43 @@
     <color name="white">#FFFFFFFF</color>
 
     <color name="toolbar_blue">#3F51B5</color>
+    <!-- Primary colors -->
+    <color name="primary">#2196F3</color>
+    <color name="primary_dark">#1976D2</color>
+    <color name="on_primary">#FFFFFF</color>
 
+    <!-- Secondary colors -->
+    <color name="secondary">#03DAC5</color>
+    <color name="on_secondary">#000000</color>
+
+    <!-- Surface colors -->
+    <color name="surface">#FFFFFF</color>
+    <color name="on_surface">#212121</color>
+
+    <!-- Background colors -->
+    <color name="background">#F4F6F8</color>
+    <color name="on_background">#212121</color>
+
+    <!-- Card colors -->
+    <color name="card_background">#FFFFFF</color>
+    <color name="card_stroke">#E0E0E0</color>
+
+    <!-- Text colors -->
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+
+    <!-- Button colors -->
+    <color name="button_primary">#2196F3</color>
+    <color name="button_primary_text">#FFFFFF</color>
+
+    <!-- Status colors -->
+    <color name="success">#4CAF50</color>
+    <color name="error">#F44336</color>
+    <color name="warning">#FF9800</color>
+    <color name="info">#2196F3</color>
+
+    <!-- Switch colors -->
+    <color name="switch_on">#4CAF50</color>
+    <color name="switch_off">#F44336</color>
+    <color name="switch_text">#FFFFFF</color>
 </resources>
