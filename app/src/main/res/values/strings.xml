@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">OS Smart Control</string>
+    <string name="voice_command">Voice Command</string>
 </resources>

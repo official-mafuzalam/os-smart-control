@@ -52,29 +52,18 @@
 
         <!-- Voice Control Button -->
         <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardStatus"
             style="@style/CardStyle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="@dimen/standard_margin">
+            android:layout_marginBottom="@dimen/standard_margin"
+            android:visibility="gone">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:padding="@dimen/card_padding">
-
-                <Button
-                    android:id="@+id/btnVoiceControl"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:backgroundTint="#4CAF50"
-                    android:drawableStart="@drawable/ic_mic"
-                    android:drawablePadding="8dp"
-                    android:drawableTint="#FFFFFF"
-                    android:text="Voice Control"
-                    android:textColor="#FFFFFF"
-                    android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/txtListeningStatus"
@@ -90,15 +79,6 @@
             </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>
-
-        <!-- Add Switches Button -->
-        <Button
-            android:id="@+id/btnAddSwitches"
-            style="@style/Widget.Material3.Button"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="@dimen/standard_margin"
-            android:text="Add/Edit Switches" />
 
         <!-- Dynamic Switches Grid Container -->
         <com.google.android.material.card.MaterialCardView

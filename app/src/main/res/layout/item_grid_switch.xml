@@ -1,47 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/gridItem"
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="?attr/selectableItemBackground"
+    android:layout_margin="10dp"
+    android:backgroundTint="#FFFFFF"
     android:clickable="true"
+    android:elevation="3dp"
     android:focusable="true"
-    android:gravity="center"
-    android:orientation="vertical"
-    android:padding="8dp">
+    android:foreground="?attr/selectableItemBackground"
+    android:padding="16dp"
+    android:radius="18dp">
 
-    <!-- Square Switch Button -->
-    <RelativeLayout
-        android:id="@+id/btnSwitchToggle"
-        android:layout_width="64dp"
-        android:layout_height="64dp"
-        android:layout_marginBottom="8dp"
-        android:background="@drawable/bg_switch_off"
-        android:clickable="true"
-        android:focusable="true">
+    <LinearLayout
+        android:id="@+id/gridItem"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="vertical">
 
+        <!-- Switch Button (Square) -->
+        <RelativeLayout
+            android:id="@+id/btnSwitchToggle"
+            android:layout_width="70dp"
+            android:layout_height="70dp"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/bg_switch_off"
+            android:clickable="true"
+            android:focusable="true"
+            android:padding="4dp">
+
+            <TextView
+                android:id="@+id/txtSwitchState"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:text="OFF"
+                android:textColor="#FFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+        </RelativeLayout>
+
+        <!-- Switch Name -->
         <TextView
-            android:id="@+id/txtSwitchState"
+            android:id="@+id/txtSwitchName"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:text="OFF"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Switch 1"
+            android:textAlignment="center"
+            android:textColor="#222"
+            android:textSize="15sp"
             android:textStyle="bold" />
 
-    </RelativeLayout>
+    </LinearLayout>
 
-    <!-- Switch Name -->
-    <TextView
-        android:id="@+id/txtSwitchName"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:ellipsize="end"
-        android:maxLines="1"
-        android:text="Switch 1"
-        android:textAlignment="center"
-        android:textColor="#333"
-        android:textSize="14sp" />
-
-</LinearLayout>
+</com.google.android.material.card.MaterialCardView>

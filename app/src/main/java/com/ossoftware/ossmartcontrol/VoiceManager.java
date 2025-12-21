@@ -1,5 +1,7 @@
 package com.ossoftware.ossmartcontrol;
 
+import static android.view.View.GONE;
+
 import android.content.Intent;
 import android.speech.RecognizerIntent;
 import android.util.Log;
@@ -10,6 +12,8 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.android.material.card.MaterialCardView;
+
 import java.util.ArrayList;
 import java.util.Locale;
 
@@ -19,6 +23,7 @@ public class VoiceManager {
 
     private MainActivity activity;
     private TextView txtListeningStatus;
+    private MaterialCardView cardStatus;
     private VoiceCommandParser commandParser;
 
     // Activity result launcher for speech recognition
@@ -32,8 +37,9 @@ public class VoiceManager {
 
     private VoiceResultListener voiceResultListener;
 
-    public VoiceManager(MainActivity activity, TextView statusTextView) {
+    public VoiceManager(MainActivity activity, TextView statusTextView, MaterialCardView cardView) {
         this.activity = activity;
+        this.cardStatus = cardView;
         this.txtListeningStatus = statusTextView;
         this.commandParser = new VoiceCommandParser();
 
@@ -78,7 +84,8 @@ public class VoiceManager {
                             activity.runOnUiThread(() -> {
                                 new android.os.Handler().postDelayed(() -> {
                                     if (txtListeningStatus != null) {
-                                        txtListeningStatus.setVisibility(android.view.View.GONE);
+                                        cardStatus.setVisibility(GONE);
+                                        txtListeningStatus.setVisibility(GONE);
                                     }
                                 }, 2000);
                             });
@@ -158,7 +165,8 @@ public class VoiceManager {
         activity.runOnUiThread(() -> {
             new android.os.Handler().postDelayed(() -> {
                 if (txtListeningStatus != null) {
-                    txtListeningStatus.setVisibility(android.view.View.GONE);
+                    cardStatus.setVisibility(GONE);
+                    txtListeningStatus.setVisibility(GONE);
                 }
             }, 2000);
         });
@@ -167,6 +175,7 @@ public class VoiceManager {
     private void updateStatus(String text, int color) {
         if (txtListeningStatus != null) {
             activity.runOnUiThread(() -> {
+                cardStatus.setVisibility(android.view.View.VISIBLE);
                 txtListeningStatus.setVisibility(android.view.View.VISIBLE);
                 txtListeningStatus.setText(text);
                 txtListeningStatus.setTextColor(activity.getResources().getColor(color));

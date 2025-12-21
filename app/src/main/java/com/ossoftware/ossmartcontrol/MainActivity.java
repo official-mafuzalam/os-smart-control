@@ -23,6 +23,8 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import com.google.android.material.card.MaterialCardView;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -40,9 +42,8 @@ public class MainActivity extends AppCompatActivity
     private TextView txtStatus;
     private LinearLayout connectionStatus;
     private GridView switchesGrid;
-    private Button btnAddSwitches;
-    private Button btnVoiceControl;
     private TextView txtListeningStatus;
+    private MaterialCardView cardStatus;
 
     // Logs UI
     private LinearLayout logsContainer;
@@ -92,7 +93,7 @@ public class MainActivity extends AppCompatActivity
         dialogManager = new DeviceDialogManager(this, this);
 
         // Initialize voice manager
-        voiceManager = new VoiceManager(this, txtListeningStatus);
+        voiceManager = new VoiceManager(this, txtListeningStatus, cardStatus);
         voiceManager.setVoiceResultListener(this);
 
         // Initialize preferences manager
@@ -141,9 +142,21 @@ public class MainActivity extends AppCompatActivity
     public boolean onCreateOptionsMenu(Menu menu) {
         getMenuInflater().inflate(R.menu.main_menu, menu);
 
-        // Add voice commands help menu item
+        MenuItem connectBluetooth = menu.add("Connect Device");
+        MenuItem editSwitch = menu.add("Edit Switches");
         MenuItem voiceHelp = menu.add("Voice Commands");
         voiceHelp.setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
+        editSwitch.setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
+        connectBluetooth.setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
+
+        connectBluetooth.setOnMenuItemClickListener(item -> {
+            showBluetoothDialog();
+            return true;
+        });
+        editSwitch.setOnMenuItemClickListener(menuItem -> {
+            showAddSwitchesDialog();
+            return true;
+        });
         voiceHelp.setOnMenuItemClickListener(item -> {
             showVoiceCommandsHelp();
             return true;
@@ -156,8 +169,8 @@ public class MainActivity extends AppCompatActivity
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
 
-        if (id == R.id.action_bluetooth) {
-            showBluetoothDialog();
+        if (id == R.id.action_voice) {
+            toggleVoiceControl();
             return true;
         }
 
@@ -169,10 +182,9 @@ public class MainActivity extends AppCompatActivity
         txtStatus = findViewById(R.id.txtStatus);
         connectionStatus = findViewById(R.id.connectionStatus);
         switchesGrid = findViewById(R.id.switchesGrid);
-        btnAddSwitches = findViewById(R.id.btnAddSwitches);
 
         // Voice control views
-        btnVoiceControl = findViewById(R.id.btnVoiceControl);
+        cardStatus = findViewById(R.id.cardStatus);
         txtListeningStatus = findViewById(R.id.txtListeningStatus);
 
         // Logs
@@ -183,15 +195,13 @@ public class MainActivity extends AppCompatActivity
 
         // Initially hide status
         connectionStatus.setVisibility(View.GONE);
+        cardStatus.setVisibility(View.GONE);
         txtListeningStatus.setVisibility(View.GONE);
     }
 
     private void setupButtonListeners() {
         btnClearLogs.setOnClickListener(v -> logManager.clearLogs());
-        btnAddSwitches.setOnClickListener(v -> showAddSwitchesDialog());
 
-        // Voice control button listener
-        btnVoiceControl.setOnClickListener(v -> toggleVoiceControl());
     }
 
     // Voice control methods

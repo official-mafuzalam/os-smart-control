@@ -3,9 +3,9 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
-        android:id="@+id/action_bluetooth"
-        android:icon="@drawable/ic_bluetooth"
-        android:title="Bluetooth"
+        android:id="@+id/action_voice"
+        android:icon="@drawable/ic_mic"
+        android:title="@string/voice_command"
         app:showAsAction="ifRoom" />
 
 </menu>
