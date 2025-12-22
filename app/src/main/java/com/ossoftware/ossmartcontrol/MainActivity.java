@@ -15,6 +15,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
@@ -73,6 +74,7 @@ public class MainActivity extends AppCompatActivity
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+//        EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
 
         // Setup ActionBar/Toolbar
@@ -80,7 +82,7 @@ public class MainActivity extends AppCompatActivity
         setSupportActionBar(toolbar);
         getSupportActionBar().setTitle("Smart Home Control");
         Window window = getWindow();
-        window.setStatusBarColor(ContextCompat.getColor(this, R.color.toolbar_blue));
+        window.setStatusBarColor(ContextCompat.getColor(this, R.color.success));
 
         initializeViews();
 

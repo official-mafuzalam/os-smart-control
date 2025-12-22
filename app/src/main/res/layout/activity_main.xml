@@ -4,28 +4,28 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F4F6F8"
+    android:background="@color/primary"
     android:fitsSystemWindows="true"
     android:orientation="vertical"
     tools:context=".MainActivity">
 
-
-    <!-- Default ActionBar/Toolbar -->
+    <!-- TOP TOOLBAR -->
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:background="#2196F3"
+        android:background="@color/primary"
         android:elevation="4dp"
+        android:paddingHorizontal="16dp"
         android:fitsSystemWindows="true"
-        app:titleTextColor="#FFFFFF" />
+        app:titleTextColor="#111" />
 
-    <!-- Status Indicator (Now below ActionBar) -->
+    <!-- CONNECTION STATUS -->
     <LinearLayout
         android:id="@+id/connectionStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="#E3F2FD"
+        android:background="#FFF8E1"
         android:gravity="center"
         android:orientation="horizontal"
         android:padding="12dp"
@@ -36,42 +36,43 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Not Connected"
-            android:textColor="#F44336"
+            android:textColor="#E65100"
             android:textSize="14sp"
             android:textStyle="bold" />
 
     </LinearLayout>
 
-    <!-- Controls Section -->
+
+    <!-- CONTENT AREA -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:orientation="vertical"
-        android:padding="@dimen/standard_padding">
+        android:orientation="vertical">
 
-        <!-- Voice Control Button -->
+        <!-- VOICE STATUS CARD -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/cardStatus"
-            style="@style/CardStyle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="@dimen/standard_margin"
+            android:layout_marginBottom="16dp"
+            android:backgroundTint="#FFFFFF"
+            android:radius="20dp"
             android:visibility="gone">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:padding="@dimen/card_padding">
+                android:padding="16dp">
 
                 <TextView
                     android:id="@+id/txtListeningStatus"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_gravity="center_vertical"
-                    android:layout_marginStart="16dp"
-                    android:text="🎤 Tap mic to speak"
+                    android:layout_marginStart="8dp"
+                    android:text="Tap microphone to speak"
                     android:textColor="#666"
                     android:textSize="14sp"
                     android:visibility="gone" />
@@ -80,29 +81,30 @@
 
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Dynamic Switches Grid Container -->
+
+        <!-- SWITCHES GRID CARD -->
         <com.google.android.material.card.MaterialCardView
-            style="@style/CardStyle"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1">
+            android:layout_weight="1"
+            android:backgroundTint="#FFFFFF"
+            android:radius="20dp">
 
             <GridView
                 android:id="@+id/switchesGrid"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:horizontalSpacing="@dimen/grid_spacing"
-                android:numColumns="3"
-                android:padding="@dimen/card_padding"
-                android:scrollbars="vertical"
-                android:stretchMode="columnWidth"
-                android:verticalSpacing="@dimen/grid_spacing" />
+                android:horizontalSpacing="14dp"
+                android:numColumns="2"
+                android:padding="16dp"
+                android:verticalSpacing="14dp" />
 
         </com.google.android.material.card.MaterialCardView>
 
     </LinearLayout>
 
-    <!-- Logs Section -->
+
+    <!-- LOGS SECTION -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -111,20 +113,20 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Log Header -->
+        <!-- LOG HEADER -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-            android:paddingBottom="12px">
+            android:paddingBottom="8dp">
 
             <TextView
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="Communication Log"
-                android:textColor="#333"
+                android:textColor="#111"
                 android:textSize="18sp"
                 android:textStyle="bold" />
 
@@ -132,33 +134,33 @@
                 android:id="@+id/btnClearLogs"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:backgroundTint="#F44336"
-                android:paddingHorizontal="16dp"
+                android:backgroundTint="#D32F2F"
+                android:paddingHorizontal="20dp"
                 android:text="Clear"
                 android:textColor="#FFFFFF" />
 
         </LinearLayout>
 
-        <!-- Stats Bar -->
+
+        <!-- LOG STATS BAR -->
         <TextView
             android:id="@+id/txtLogStats"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="#F5F5F5"
+            android:background="#F2F3F5"
             android:gravity="center"
-            android:padding="8dp"
-            android:paddingBottom="8dp"
+            android:padding="10dp"
             android:text="Total: 0 | Sent: 0 | Received: 0 | Errors: 0"
             android:textColor="#666"
             android:textSize="12sp" />
 
-        <!-- Log List Container -->
+
+        <!-- LOG LIST -->
         <ScrollView
             android:id="@+id/scrollViewLogs"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_weight="1"
-            android:padding="4dp">
+            android:layout_weight="1">
 
             <LinearLayout
                 android:id="@+id/logsContainer"
@@ -168,17 +170,18 @@
 
         </ScrollView>
 
-        <!-- Empty State -->
+
+        <!-- EMPTY STATE -->
         <TextView
             android:id="@+id/txtEmptyLogs"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:gravity="center"
-            android:padding="32dp"
-            android:text="No logs yet\n\nConnect to a device and start controlling"
+            android:padding="24dp"
+            android:text="No logs yet\n\nConnect to a device to start"
             android:textAlignment="center"
             android:textColor="#999"
-            android:textSize="16sp"
+            android:textSize="14sp"
             android:visibility="visible" />
 
     </LinearLayout>
